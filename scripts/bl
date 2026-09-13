@@ -118,7 +118,7 @@ def main():
         elif args.cmd == "render":
             path = os.path.abspath(args.path)
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            engine = "BLENDER_EEVEE_NEXT" if args.engine == "EEVEE" else "CYCLES"
+            engine = "BLENDER_EEVEE" if args.engine == "EEVEE" else "CYCLES"
             code = (
                 "import bpy\n"
                 "sc = bpy.context.scene\n"
