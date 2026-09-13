@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sameOrigin } from "@/lib/request-origin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -24,8 +25,7 @@ async function proxy(
   const path = (await params).path.join("/");
   if (!allowed(request.method, path))
     return NextResponse.json({ detail: "Not found" }, { status: 404 });
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin)
+  if (!sameOrigin(request))
     return NextResponse.json({ detail: "Origin not allowed" }, { status: 403 });
   const streaming = path.endsWith("/events");
   const after = request.nextUrl.searchParams.get("after") || "0";

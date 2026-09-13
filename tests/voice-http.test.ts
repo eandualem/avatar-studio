@@ -17,6 +17,21 @@ afterEach(() => {
 });
 const params = (...path: string[]) => ({ params: Promise.resolve({ path }) });
 describe("voice transport boundaries", () => {
+  it("accepts the browser origin when Next exposes an internal production URL", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ configured: false }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const request = new NextRequest("http://localhost:7142/api/voice/status", {
+      headers: {
+        origin: "http://127.0.0.1:7142",
+        host: "127.0.0.1:7142",
+        "x-forwarded-proto": "http",
+      },
+    });
+    expect((await GET(request, params("status"))).status).toBe(200);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it("forwards streaming events immediately with the explicit replay cursor", async () => {
     vi.stubEnv("VOICE_RUNTIME_URL", "http://voice.local");
     let enqueue!: ReadableStreamDefaultController<Uint8Array>;

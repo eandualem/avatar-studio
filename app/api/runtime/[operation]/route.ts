@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { sameOrigin } from "@/lib/request-origin";
 export const maxDuration = 180;
 const url = (voice: boolean) =>
   (
@@ -14,8 +15,7 @@ export async function POST(
   const { operation } = await params;
   if (!["chat", "cancel", "voice-chat", "voice-cancel"].includes(operation))
     return NextResponse.json({ detail: "Not found" }, { status: 404 });
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin)
+  if (!sameOrigin(request))
     return NextResponse.json({ detail: "Origin not allowed" }, { status: 403 });
   try {
     const body = await request.json();
