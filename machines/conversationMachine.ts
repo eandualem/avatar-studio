@@ -2,6 +2,7 @@ import { setup, assign, fromPromise } from "xstate";
 import { sendTurn, cancelTurn } from "@/lib/runtime";
 import { executeTool } from "@/lib/host-tools";
 import { loadHistory, newConversation, saveHistory } from "@/lib/history";
+import { voiceMachine } from "./voiceMachine";
 import type {
   Conversation,
   Pending,
@@ -19,11 +20,13 @@ type Context = {
   receipts: Record<string, ToolReceipt>;
   error: string;
   rounds: number;
+  voiceHistory: Conversation["messages"];
 };
 type Events =
   | { type: "SEND"; content: string }
   | { type: "NEW" }
   | { type: "SELECT"; id: string }
+  | { type: "START_LIVE" }
   | { type: "STOP" };
 function incorporate(current: Conversation, reply: Reply): Conversation {
   if (!reply.content) return current;
@@ -48,6 +51,7 @@ export const conversationMachine = setup({
     events: {} as Events,
   },
   actors: {
+    voice: voiceMachine,
     restore: fromPromise(async () => loadHistory()),
     request: fromPromise(
       ({ input, signal }: { input: Context; signal: AbortSignal }) =>
@@ -66,7 +70,9 @@ export const conversationMachine = setup({
           ? Promise.resolve(input.receipts[input.pending!.call_id])
           : executeTool(input.pending!, input.controller, signal),
     ),
-    cancel: fromPromise(({ input }: { input: string }) => cancelTurn(input)),
+    cancel: fromPromise(({ input }: { input: Conversation }) =>
+      cancelTurn(input.id, input.mode),
+    ),
   },
   guards: {
     hasTool: ({ context }) => !!context.pending && context.rounds < 12,
@@ -91,7 +97,7 @@ export const conversationMachine = setup({
 }).createMachine({
   id: "conversation",
   description:
-    "Coordinates real assistant turns and exactly-once host execution within a conversation.\n- controller: live body service\n- history: locally saved conversations\n- current: selected conversation\n- pending: requested host action\n- receipt: result awaiting continuation\n- receipts: completed calls for this turn\n- error: user-visible failure\n- rounds: tool-loop bound",
+    "Coordinates assistant turns and host execution. controller: live body service; history: saved conversations; current: selected conversation; pending: requested action; receipt: result awaiting continuation; receipts: completed calls; error: visible failure; rounds: tool-loop bound; voiceHistory: messages preceding the active voice call.",
   context: ({ input }) => ({
     ...input,
     history: [],
@@ -101,6 +107,7 @@ export const conversationMachine = setup({
     receipts: {},
     error: "",
     rounds: 0,
+    voiceHistory: [],
   }),
   initial: "loading",
   states: {
@@ -125,6 +132,27 @@ export const conversationMachine = setup({
     idle: {
       description: "Ready for a new user message or conversation.",
       on: {
+        START_LIVE: {
+          target: "live",
+          actions: [
+            "remember",
+            "persist",
+            assign({
+              current: ({ context }) =>
+                context.current.mode === "voice"
+                  ? context.current
+                  : {
+                      ...newConversation(),
+                      title: "Live conversation",
+                      mode: "voice" as const,
+                    },
+              error: "",
+            }),
+            assign({ voiceHistory: ({ context }) => context.current.messages }),
+          ],
+          description:
+            "Start a dedicated live conversation or resume a saved voice conversation without changing text-session ownership.",
+        },
         SEND: {
           guard: "hasContent",
           target: "requesting",
@@ -216,6 +244,78 @@ export const conversationMachine = setup({
         },
       },
     },
+    live: {
+      description:
+        "Reserve this conversation for a live voice actor; ordinary chat and navigation wait for hangup.",
+      invoke: {
+        id: "voice",
+        src: "voice",
+        input: ({ context }) => ({
+          sessionId: context.current.id,
+          controller: context.controller,
+          history: context.current.messages,
+        }),
+        onSnapshot: {
+          actions: [
+            assign({
+              current: ({ context, event }) => {
+                const messages = [
+                  ...context.voiceHistory,
+                  ...event.snapshot.context.view.messages,
+                ].slice(-400);
+                const title =
+                  context.voiceHistory.length === 0
+                    ? messages
+                        .find((m) => m.role === "user")
+                        ?.content.slice(0, 42) || context.current.title
+                    : context.current.title;
+                const callId = event.snapshot.context.view.callId;
+                const voiceCalls = callId
+                  ? [
+                      ...new Set([
+                        ...(context.current.voiceCalls || []),
+                        callId,
+                      ]),
+                    ].slice(-100)
+                  : context.current.voiceCalls;
+                return { ...context.current, messages, title, voiceCalls };
+              },
+            }),
+            "remember",
+            "persist",
+          ],
+          description:
+            "Keep live transcript fragments and full backend replies visible and saved.",
+        },
+        onDone: {
+          target: "idle",
+          actions: [
+            assign({
+              current: ({ context, event }) => ({
+                ...context.current,
+                messages: [
+                  ...context.voiceHistory,
+                  ...event.output.messages,
+                ].slice(-400),
+              }),
+              error: ({ event }) => event.output.error,
+              voiceHistory: [],
+            }),
+            "remember",
+            "persist",
+          ],
+          description:
+            "Keep the completed voice conversation available for voice or typed continuation.",
+        },
+        onError: {
+          target: "idle",
+          actions: assign({
+            error: () => "The live conversation stopped unexpectedly.",
+          }),
+          description: "Expose an unexpected voice actor failure.",
+        },
+      },
+    },
     routing: {
       description: "Continue a host tool or finish the turn.",
       always: [
@@ -277,7 +377,7 @@ export const conversationMachine = setup({
       description: "Confirm cancellation before accepting another message.",
       invoke: {
         src: "cancel",
-        input: ({ context }) => context.current.id,
+        input: ({ context }) => context.current,
         onDone: {
           target: "idle",
           description: "Accept another request after cancellation.",

@@ -8,6 +8,9 @@ import {
   ChevronDown,
   MessageCircle,
   Mic,
+  MicOff,
+  PhoneOff,
+  Volume2,
   Plus,
   Square,
   X,
@@ -17,7 +20,9 @@ import {
   useAvatar,
   useConversation,
   useSpeech,
+  useVoice,
 } from "@/hooks/useStudio";
+import { VoicePhase } from "@/types/voice";
 
 function Mark({ small = false }: { small?: boolean }) {
   return (
@@ -36,7 +41,8 @@ function Workspace() {
       data: avatarData,
       actions: { canvasRef, retry: retryAvatar },
     } = useAvatar(),
-    chat = useConversation();
+    chat = useConversation(),
+    voice = useVoice();
   const [draft, setDraft] = useState(""),
     [sidebar, setSidebar] = useState(false);
   const speech = useSpeech((text) =>
@@ -45,6 +51,22 @@ function Workspace() {
   const bottom = useRef<HTMLDivElement>(null),
     input = useRef<HTMLTextAreaElement>(null);
   const busy = chat.state !== "idle";
+  const live = voice.state !== VoicePhase.Idle;
+  const voiceReady = voice.state === VoicePhase.Active;
+  const voiceStatus =
+    voice.state === VoicePhase.Connecting
+      ? "Connecting live audio"
+      : voice.state === VoicePhase.Closing
+        ? "Ending live conversation"
+        : voice.state === VoicePhase.Cancelling
+          ? "Stopping movement"
+          : voice.data.view?.soundBlocked
+            ? "Enable sound to hear Charlie"
+            : voice.data.view?.speaking
+              ? "Charlie is speaking"
+              : voice.data.view?.micMuted
+                ? "Microphone muted"
+                : "Listening live";
   const listening = speech.state === "listening";
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -59,13 +81,15 @@ function Workspace() {
       ? "Avatar unavailable"
       : avatarState !== "ready"
         ? "Getting ready"
-        : listening
-          ? "Listening to you"
-          : chat.state === "moving"
-            ? "Expressing a thought"
-            : busy
-              ? "Thinking with you"
-              : "Ready to listen";
+        : live
+          ? voiceStatus
+          : listening
+            ? "Listening to you"
+            : chat.state === "moving"
+              ? "Expressing a thought"
+              : busy
+                ? "Thinking with you"
+                : "Ready to listen";
   return (
     <main className="studio">
       <button
@@ -186,7 +210,20 @@ function Workspace() {
         <header className="conversation-heading">
           <div className="heading-row">
             <span className="eyebrow">YOUR SPACE TO EXPLORE</span>
-            <AudioLines size={20} />
+            {live ? (
+              <span className="live-heading">
+                <AudioLines size={18} /> Live conversation
+              </span>
+            ) : (
+              <button
+                className="live-start"
+                disabled={busy || listening || avatarState !== "ready"}
+                onClick={voice.actions.start}
+                aria-label="Start live conversation"
+              >
+                <AudioLines size={18} /> Talk live
+              </button>
+            )}
           </div>
           <h2>Let’s think together.</h2>
           <p>
@@ -235,12 +272,17 @@ function Workspace() {
               <div>
                 <span className="message-author">
                   {message.role === "user" ? "You" : "Charlie"}
+                  {message.source === "voice"
+                    ? " · Live transcript"
+                    : message.source === "backend"
+                      ? " · Full response"
+                      : ""}
                 </span>
                 <div className="bubble">{message.content}</div>
               </div>
             </article>
           ))}
-          {busy && (
+          {busy && !live && (
             <div className="thinking">
               <span />
               <span />
@@ -257,67 +299,143 @@ function Workspace() {
           <div ref={bottom} />
         </div>
         <div className="composer-area">
-          {(chat.data.error || speech.data.error) && (
+          {(chat.data.error ||
+            speech.data.error ||
+            voice.data.view?.warning) && (
             <p className="error-message" role="alert">
-              {chat.data.error || speech.data.error}
+              {chat.data.error || speech.data.error || voice.data.view?.warning}
             </p>
           )}
-          <form
-            className={`composer ${listening ? "listening" : ""}`}
-            onSubmit={(event) => {
-              event.preventDefault();
-              send();
-            }}
-          >
-            <button
-              type="button"
-              className={`mic-button icon-button ${listening ? "recording" : ""}`}
-              disabled={busy}
-              aria-label={listening ? "Stop dictation" : "Dictate a message"}
-              title="Dictate a message"
-              onClick={() =>
-                listening ? speech.actions.stop() : speech.actions.start()
-              }
+          {live ? (
+            <div
+              className="live-controls"
+              role="group"
+              aria-label="Live conversation controls"
             >
-              {listening ? <Square size={16} /> : <Mic size={20} />}
-            </button>
-            <textarea
-              ref={input}
-              value={draft}
-              maxLength={12000}
-              rows={1}
-              aria-label="Message Charlie"
-              placeholder={listening ? "Listening…" : "What’s on your mind?"}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  send();
-                }
+              <div className="live-summary">
+                <span role="status">{voiceStatus}</span>
+                <span>
+                  {Math.floor((voice.data.view?.elapsed || 0) / 60)}:
+                  {String((voice.data.view?.elapsed || 0) % 60).padStart(
+                    2,
+                    "0",
+                  )}
+                </span>
+              </div>
+              {voice.data.view?.work && (
+                <p className="live-work">{voice.data.view.work}</p>
+              )}
+              <div className="live-buttons">
+                <button
+                  type="button"
+                  disabled={!voiceReady}
+                  onClick={voice.actions.mute}
+                  aria-label={
+                    voice.data.view?.micMuted
+                      ? "Unmute microphone"
+                      : "Mute microphone"
+                  }
+                  aria-pressed={voice.data.view?.micMuted || false}
+                >
+                  {voice.data.view?.micMuted ? (
+                    <MicOff size={18} />
+                  ) : (
+                    <Mic size={18} />
+                  )}{" "}
+                  {voice.data.view?.micMuted ? "Unmute" : "Mute"}
+                </button>
+                {voice.data.view?.soundBlocked && (
+                  <button
+                    type="button"
+                    onClick={voice.actions.play}
+                    disabled={!voiceReady}
+                  >
+                    <Volume2 size={18} /> Enable sound
+                  </button>
+                )}
+                {voice.data.view?.work && (
+                  <button
+                    type="button"
+                    onClick={voice.actions.stopWork}
+                    disabled={!voiceReady}
+                  >
+                    <Square size={15} /> Stop movement
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="end-call"
+                  onClick={voice.actions.end}
+                  disabled={voice.state === VoicePhase.Closing}
+                >
+                  <PhoneOff size={18} /> End call
+                </button>
+              </div>
+              <p className="live-note">
+                Speak naturally. You can interrupt Charlie. End the call to
+                release the microphone.
+              </p>
+            </div>
+          ) : (
+            <form
+              className={`composer ${listening ? "listening" : ""}`}
+              onSubmit={(event) => {
+                event.preventDefault();
+                send();
               }}
-            />
-            {busy ? (
+            >
               <button
                 type="button"
-                className="send-button"
-                aria-label="Stop response or movement"
-                onClick={chat.actions.stop}
+                className={`mic-button icon-button ${listening ? "recording" : ""}`}
+                disabled={busy}
+                aria-label={listening ? "Stop dictation" : "Dictate a message"}
+                title="Dictate a message"
+                onClick={() =>
+                  listening ? speech.actions.stop() : speech.actions.start()
+                }
               >
-                <Square size={16} fill="currentColor" />
+                {listening ? <Square size={16} /> : <Mic size={20} />}
               </button>
-            ) : (
-              <button
-                className="send-button"
-                type="submit"
-                aria-label="Send message"
-                disabled={!draft.trim() || listening}
-              >
-                <ArrowUp size={21} />
-              </button>
-            )}
-          </form>
+              <textarea
+                ref={input}
+                value={draft}
+                maxLength={12000}
+                rows={1}
+                aria-label="Message Charlie"
+                placeholder={listening ? "Listening…" : "What’s on your mind?"}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
+              />
+              {busy ? (
+                <button
+                  type="button"
+                  className="send-button"
+                  aria-label="Stop response or movement"
+                  onClick={chat.actions.stop}
+                >
+                  <Square size={16} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  type="submit"
+                  aria-label="Send message"
+                  disabled={!draft.trim() || listening}
+                >
+                  <ArrowUp size={21} />
+                </button>
+              )}
+            </form>
+          )}
           <p className="composer-note">
-            {listening ? (
+            {live ? (
+              "Live audio uses OpenAI API credit while connected."
+            ) : listening ? (
               "Speak naturally. You can edit before sending."
             ) : (
               <>

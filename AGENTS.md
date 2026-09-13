@@ -10,11 +10,29 @@ and it is built entirely by agents on
 The end state, so you know where each milestone leads: the character is
 rigged and carries ARKit and Oculus viseme blend shapes, exported as GLB,
 rendered in the browser by [TalkingHead](https://github.com/met4citizen/talkinghead)
-with real-time lip-sync from the OpenAI Realtime API, inside a Next.js and
+with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js and
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current milestone 4 (approved by Elias, 2026-09-13): constrained body motion
+## Current milestone 5 (approved by Elias, 2026-09-13): GPT-Live voice
+
+Elias accepted the body-control direction and requested direct audio interaction
+through assistant-runtime's completed GPT-Live integration. Issue #11 tracks it.
+This authorizes speech playback and supersedes the earlier body-only scope.
+
+- Coordinate with the assistant-runtime agent and use its public voice contract.
+- Preserve Charlie and the approved layout; add explicit live start/end,
+  WebRTC microphone/speaker, transcripts, playback and connection feedback.
+- Delegate avatar actions through the existing validated tools. Handle replay,
+  cancellation and lost acknowledgements without repeating physical movement.
+- Keep provider credentials in the runtime. Preserve existing text sessions when
+  deploying a separate voice runtime. No microphone starts automatically.
+- Test lifecycle failures, inspect the browser and trial real audio if configured
+  access is available. Record external blockers and follow delivery through merge.
+- Facial blend shapes and lip-sync remain later work. Movement guidance/skills
+  are a future improvement, not a new fixed gesture menu.
+
+## Delivered milestone 4: constrained body motion
 
 Elias tested milestone 3 (PR #8) and requested leg and whole-body movement,
 more natural hands, and reuse of open-source IK libraries. Issue #9 tracks it.

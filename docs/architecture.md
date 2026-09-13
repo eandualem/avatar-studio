@@ -6,9 +6,9 @@ iteration deliberately precedes TalkingHead and facial blend shapes.
 
 ## Conversation and body control
 
-The Next.js server forwards the documented non-streaming HTTP chat and cancel
-contracts to assistant-runtime. Provider keys stay in the runtime. Written
-responses appear after each model turn; token streaming is not implemented yet.
+The Next.js server forwards HTTP chat/cancel and streaming voice contracts
+to assistant-runtime. Provider keys stay in the runtime. Text-chat replies
+appear after each model turn; backend replies during live voice stream as text.
 
 Each request supplies `host_context`: the actual pose, useful landmarks,
 the coordinate system, and JSON schemas for `move_avatar` and `get_pose`. The
@@ -62,8 +62,9 @@ These are **configured presentation constraints, not complete human anatomy or
 dynamic physics**. Capsules do not cover every shell/finger contact; the support
 test is a static approximation. Walking, running, jumping, falling, arbitrary
 environment interaction, and guaranteed natural movement remain unsupported.
-The boots are rigid, so individual toes do not articulate. Facial expressions,
-speech playback and lip-sync remain future work. See [solver selection and
+The boots are rigid, so individual toes do not articulate. Facial expressions
+and lip-sync remain future work. GPT-Live supplies speech playback separately.
+See [solver selection and
 limits](motion-solvers.md) for the candidate comparison and follow-up directions.
 
 ## State and persistence
@@ -83,8 +84,10 @@ conversation. Pose is transient and starts at rest after a page reload.
 The microphone uses browser SpeechRecognition to fill the editable composer;
 it sends only when the user presses Send. Recognition availability and privacy
 behavior depend on the browser; some browsers use a remote speech service.
-No microphone starts automatically. This is dictation, not OpenAI Realtime
-voice. Speech playback and lip-sync are future work.
+No microphone starts automatically. **Talk live** starts a separate GPT-Live
+WebRTC conversation through assistant-runtime, with its own lifecycle actor.
+The browser plays incoming audio and observes server events for transcripts
+and delegated movement. See [voice setup and lifecycle](voice.md).
 
 ## Verification
 

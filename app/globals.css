@@ -325,6 +325,68 @@ a {
   color: #c6b8a6;
   margin-bottom: 18px;
 }
+.live-start,
+.live-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fffaf3;
+  color: #8b6049;
+  padding: 9px 11px;
+  font-size: 11px;
+}
+.live-start:hover:not(:disabled),
+.live-controls button:hover:not(:disabled) {
+  background: #f3e7d9;
+}
+.live-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--terracotta);
+}
+.live-controls {
+  border: 1px solid #dcc8b6;
+  border-radius: 13px;
+  padding: 15px;
+  background: #faf3ea;
+}
+.live-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #88664f;
+}
+.live-summary > span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.live-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+.live-controls .end-call {
+  margin-left: auto;
+  background: var(--terracotta);
+  color: white;
+  border-color: var(--terracotta);
+}
+.live-controls .end-call:hover:not(:disabled) {
+  background: #a55d44;
+}
+.live-note,
+.live-work {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 11px 0 0;
+}
 .conversation-heading h2 {
   font-family: Manrope, var(--font);
   font-size: 28px;

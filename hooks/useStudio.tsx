@@ -2,6 +2,9 @@
 import { createActorContext, useSelector } from "@xstate/react";
 import { useCallback, useEffect, useEffectEvent } from "react";
 import { appMachine } from "@/machines/appMachine";
+import { VoicePhase } from "@/types/voice";
+import type { ActorRefFrom } from "xstate";
+import type { voiceMachine } from "@/machines/voiceMachine";
 
 export const StudioProvider = createActorContext(appMachine);
 export function useAvatar() {
@@ -35,6 +38,42 @@ export function useConversation() {
       stop: () => actor.send({ type: "STOP" }),
       newConversation: () => actor.send({ type: "NEW" }),
       select: (id: string) => actor.send({ type: "SELECT", id }),
+    },
+  };
+}
+export function useVoice() {
+  const conversation = StudioProvider.useSelector(
+    (s) => s.context.conversation,
+  );
+  const speech = StudioProvider.useSelector((s) => s.context.speech);
+  const actor = useSelector(
+    conversation,
+    (s) => s.children.voice as ActorRefFrom<typeof voiceMachine> | undefined,
+  );
+  const phase = useSelector(
+    actor,
+    (s) =>
+      ({
+        connecting: VoicePhase.Connecting,
+        active: VoicePhase.Active,
+        cancelling: VoicePhase.Cancelling,
+        closing: VoicePhase.Closing,
+        ended: VoicePhase.Idle,
+      })[s?.value || "ended"],
+  );
+  const view = useSelector(actor, (s) => s?.context.view);
+  return {
+    state: phase,
+    data: { view },
+    actions: {
+      start: () => {
+        speech.send({ type: "STOP" });
+        conversation.send({ type: "START_LIVE" });
+      },
+      end: () => actor?.send({ type: "END" }),
+      mute: () => actor?.send({ type: "MUTE" }),
+      play: () => actor?.send({ type: "PLAY" }),
+      stopWork: () => actor?.send({ type: "CANCEL_WORK" }),
     },
   };
 }
