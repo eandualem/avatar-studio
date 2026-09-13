@@ -1,47 +1,74 @@
 # Avatar Studio
 
-A voice assistant with a body. A 3D robot character, generated and built
-by agents, that you talk to in the browser: the OpenAI Realtime API for
-speech, [TalkingHead](https://github.com/met4citizen/talkinghead) for
-real-time lip-sync, and [assistant-runtime](https://github.com/eandualem/assistant-runtime)
-behind it. A sibling of [Design Studio](https://github.com/eandualem/design-studio),
-same stack, same discipline: one screen, no accounts, small on purpose.
+Charlie is an assistant with a live 3D robot body. Talk through an idea in text,
+dictate a message, or ask Charlie to move. The assistant composes hand, finger
+and head motion through frontend tools; the browser solves the pose each frame.
+There are no baked animation clips or a fixed gesture menu.
 
-**Status (2026-09-13):** the procedural Blender character and five Cycles
-renders are ready for Elias's visual review. See the
-[turnaround](renders/turnaround.png), [hero](renders/hero.png), and
-[modeling notes](blender/NOTES.md). Rigging starts only after character review.
+Built with Next.js, Three.js and XState, backed by
+[assistant-runtime](https://github.com/eandualem/assistant-runtime).
+The approved Blender model and reference layout are preserved.
 
-## Pipeline
+## Run locally
 
-1. **Character** — hard-surface model built by code in Blender, rendered to
-   match the reference sheet. *(ready for review)*
-2. **Rig** — body rig (Mixamo or Rigify), ARKit 52 + Oculus viseme blend
-   shapes on the face.
-3. **Export** — GLB with the rig and shapes TalkingHead expects.
-4. **App** — Next.js + XState, full-screen avatar, mic button, transcript.
-   The visitor's OpenAI key stays in the browser; the runtime never sees it.
-5. **Voice** — gpt-realtime over WebRTC, audio-driven visemes.
-
-## Working with Blender from a terminal
-
-`scripts/bl` talks to Blender over the socket the
-[MCP for Blender](https://github.com/ahujasid/blender-mcp) addon opens, so any
-agent runtime, or a person, drives Blender with plain commands:
+Use Bun 1.4 or later and Node 22 or later:
 
 ```bash
-scripts/blender-up.sh                  # start Blender with the bridge
-scripts/bl run blender/robot/build.py  # run code inside Blender
-scripts/bl shot .tmp/view.png          # look at the viewport
-scripts/bl render renders/front.png --engine CYCLES
+bun install
+bun run dev
 ```
 
-The complete workflow, camera names, static hero pose, and validation command
-are in [blender/README.md](blender/README.md).
+Open **http://127.0.0.1:7140**. The app expects assistant-runtime on port 7100;
+set the server-only `RUNTIME_URL` in `.env.local` to use another instance.
 
-The MCP server itself is optional; adapters for Claude Code (`.mcp.json`)
-and Codex (`.codex/config.toml`) are included.
+Start the installed runtime from a directory containing its configured `.env`
+and a funded model provider. Point it to this repository's profile:
 
-## License
+```bash
+ASSISTANT__PROFILE=/absolute/path/to/avatar-studio/profiles/avatar-studio.toml \
+TOOLS__BUILTIN_TOOLS='["time"]' \
+TOOLS__PROVIDER_CAPABILITIES='[]' \
+ASSISTANT__ENABLE_WORKING_MEMORY=false \
+assistant-runtime serve --host 127.0.0.1 --port 7100 --no-replace
+```
+
+API credentials belong in assistant-runtime, never the frontend. This is a local
+application; public deployment and authentication are outside this milestone.
+
+Try: “Raise your left hand, point up with your index finger, and look toward it.”
+Then: “Relax both hands slowly.” Stop interrupts movement and the current reply.
+The microphone fills the composer for editing before sending.
+
+## Current scope
+
+- Approved 65-bone robot with all 134 rigid shell pieces, exported as GLB.
+- Model-created continuous hand targets, five finger curls per hand, and head angles.
+- Reach and wrist constraints, smooth transitions, cancellation, typed chat and local history.
+- Browser microphone dictation, where SpeechRecognition is supported.
+
+Full anatomical limits, collision avoidance, walking, facial shapes, realtime
+speech and lip-sync remain future work. Responses arrive per model turn rather
+than streaming token by token. See [architecture and limits](docs/architecture.md).
+
+## Checks and asset rebuild
+
+```bash
+bun run test
+bun run typecheck
+bun run lint
+bun run build
+bun run start
+```
+
+With `blender/rigged.blend` open through the Blender bridge:
+
+```bash
+scripts/bl run blender/rig/export_web.py
+```
+
+This exports only the rigged character in rest pose to `public/avatar/robot.glb`;
+it restores the Blender pose after exporting. The build and rig workflows are
+in [blender/README.md](blender/README.md) and [blender/rig/README.md](blender/rig/README.md).
+Source references live in `references/`; approved stills live in `renders/`.
 
 MIT.

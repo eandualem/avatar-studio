@@ -12,30 +12,28 @@ rigged and carries ARKit and Oculus viseme blend shapes, exported as GLB,
 rendered in the browser by [TalkingHead](https://github.com/met4citizen/talkinghead)
 with real-time lip-sync from the OpenAI Realtime API, inside a Next.js and
 XState app that follows design-studio's architecture. The backend already
-exists: the runtime. Body rigging is now authorized; facial shapes and the app
-remain later work.
+exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current milestone 2 (approved by Elias, 2026-09-13): Mixamo body rig and motions
+## Current milestone 3 (approved by Elias, 2026-09-13): functional avatar app
 
-Elias approved the character after reviewing milestone 1 and asked to progress
-to Mixamo rigging, import it back into Blender, and check the motions.
+Elias explicitly authorized the initial functional application after reviewing
+procedural motion. Issue #7 tracks this work. This supersedes the earlier stops
+before rigging, export, and the web app.
 
-- Hide the starter cube from the viewport as well as renders and exports.
-- Prepare a clean character-only neutral upload for Mixamo. A connected proxy
-  may be used for auto-rigging while the approved shell pieces remain intact.
-- Import the Mixamo skeleton and keep hard shell panels rigid. Elias redirected
-  motion work toward procedural controls after the animation download failed:
-  prove target-driven hand movement, finger control, and head motion in Blender.
-- Save the rigged review scene, reproducible preparation/import/control code,
-  source skeleton, and procedural preview with remaining limitations. Downloaded
-  motion clips are optional fallback material, not a requirement for this step.
-- Stop at body-motion review. Do not add facial blend shapes, lip-sync, a GLB
-  integration, or the web app in this step.
+- Preserve the approved robot and `references/app-mock.png` layout.
+- Export the rigid body rig as GLB and render it in the browser.
+- Build Next.js with the same XState layering as design-studio: presentational
+  components, hooks, domain machines, and independent library modules.
+- Connect the existing assistant-runtime through its public host-tool contract.
+  Let the assistant compose hand targets, finger curls, head angles and timing;
+  solve motion each frame with reach limits and conservative wrist constraints.
+- Deliver working typed conversations and browser microphone dictation first.
+  Realtime voice, facial shapes, lip-sync, walking and full-body collision/balance
+  remain later work. Use Three.js directly for this body-control iteration.
+- Verify actual model-directed movement, interruption, input validation, and the
+  production build. Follow the shared issue/PR delivery lifecycle through merge.
 
-The previous stop before rigging is superseded by Elias's explicit approval.
-Issue #3 tracks this work. Apply the Blender working rules below to this phase.
-
-### Direction for the next application milestone
+### Movement direction
 
 Preserve the approved robot and app design. Expose frontend actions through
 assistant-runtime so the assistant can express itself by setting movement
