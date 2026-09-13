@@ -14,7 +14,24 @@ with real-time lip-sync from the OpenAI Realtime API, inside a Next.js and
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current milestone 3 (approved by Elias, 2026-09-13): functional avatar app
+## Current milestone 4 (approved by Elias, 2026-09-13): constrained body motion
+
+Elias tested milestone 3 (PR #8) and requested leg and whole-body movement,
+more natural hands, and reuse of open-source IK libraries. Issue #9 tracks it.
+
+- Preserve the approved robot and application design.
+- Use an upstream solver for arms and legs, with configured joint limits,
+  persistent solver state, and bounded joint rotation rates.
+- Expose feet, pelvis, torso, shoulders and head alongside hands and fingers
+  through the existing continuous waypoint tool.
+- Enforce practical self-collision, floor and static support checks. Return the
+  actual pose and explain blocked targets; do not promise complete anatomy,
+  dynamic balance, or that every allowed movement will look natural.
+- Test the shipped skeleton across ordinary and adversarial targets, inspect
+  live assistant-directed movement, document the library choice and limits,
+  and follow issue/PR delivery through merge. Walking and facial work stay later.
+
+## Delivered milestone 3: functional avatar app
 
 Elias explicitly authorized the initial functional application after reviewing
 procedural motion. Issue #7 tracks this work. This supersedes the earlier stops
@@ -41,8 +58,8 @@ targets, hand/finger poses, gaze, and timing. Prefer runtime-generated motion
 over selecting baked clips. The frontend should solve and smooth motion each
 frame; the LLM chooses intent and parameters. Written responses remain part
 of the existing design. Prebuilt motions are an acceptable fallback where
-procedural motion becomes impractical. This direction does not start the web
-app or facial/lip-sync work during the current Blender milestone.
+procedural motion becomes impractical. Facial shapes, speech playback and
+lip-sync remain outside the current body-control milestone.
 
 ## Approved milestone 1: the character in Blender
 

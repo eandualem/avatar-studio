@@ -13,13 +13,20 @@ export const restPose = (): Pose => ({
     position: [0.198, 0.455, 0.022],
     direction: [0, -1, 0],
     curls: [0, 0.12, 0.12, 0.12, 0.12],
+    roll: 0,
   },
   right: {
     position: [-0.198, 0.455, 0.022],
     direction: [0, -1, 0],
     curls: [0, 0.12, 0.12, 0.12, 0.12],
+    roll: 0,
   },
-  head: { yaw: 0, nod: 0 },
+  leftFoot: { position: [0.1043, 0.0871, -0.0035], yaw: 0, pitch: 0 },
+  rightFoot: { position: [-0.1043, 0.0871, -0.0035], yaw: 0, pitch: 0 },
+  pelvis: { offset: [0, 0, 0], yaw: 0 },
+  torso: { bend: 0, twist: 0, lean: 0 },
+  shoulders: { left: 0, right: 0 },
+  head: { yaw: 0, nod: 0, tilt: 0 },
 });
 export const ease = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -48,10 +55,27 @@ export function interpolate(a: Pose, b: Pose, t: number): Pose {
     pose[side].curls = a[side].curls.map((v, i) =>
       lerp(v, b[side].curls[i], t),
     ) as Pose["left"]["curls"];
+    pose[side].roll = lerp(a[side].roll, b[side].roll, t);
   }
+  for (const side of ["leftFoot", "rightFoot"] as const) {
+    pose[side].position = a[side].position.map((v, i) =>
+      lerp(v, b[side].position[i], t),
+    ) as Vec3;
+    pose[side].yaw = lerp(a[side].yaw, b[side].yaw, t);
+    pose[side].pitch = lerp(a[side].pitch, b[side].pitch, t);
+  }
+  pose.pelvis.offset = a.pelvis.offset.map((v, i) =>
+    lerp(v, b.pelvis.offset[i], t),
+  ) as Vec3;
+  pose.pelvis.yaw = lerp(a.pelvis.yaw, b.pelvis.yaw, t);
+  for (const key of ["bend", "twist", "lean"] as const)
+    pose.torso[key] = lerp(a.torso[key], b.torso[key], t);
+  for (const side of ["left", "right"] as const)
+    pose.shoulders[side] = lerp(a.shoulders[side], b.shoulders[side], t);
   pose.head = {
     yaw: lerp(a.head.yaw, b.head.yaw, t),
     nod: lerp(a.head.nod, b.head.nod, t),
+    tilt: lerp(a.head.tilt, b.head.tilt, t),
   };
   return pose;
 }
@@ -64,7 +88,12 @@ export function planMotion(start: Pose, motion: Motion) {
     const next = structuredClone(previous);
     for (const side of ["left", "right"] as const)
       Object.assign(next[side], point[side]);
-    if (point.head) next.head = point.head;
+    for (const side of ["leftFoot", "rightFoot"] as const)
+      Object.assign(next[side], point[side]);
+    if (point.pelvis) next.pelvis = point.pelvis;
+    if (point.torso) next.torso = point.torso;
+    if (point.shoulders) next.shoulders = point.shoulders;
+    if (point.head) Object.assign(next.head, point.head);
     const distance = Math.max(
       ...(["left", "right"] as const).map((s) =>
         new Vector3(...previous[s].position).distanceTo(
@@ -75,6 +104,7 @@ export function planMotion(start: Pose, motion: Motion) {
     const turn = Math.max(
       Math.abs(next.head.yaw - previous.head.yaw),
       Math.abs(next.head.nod - previous.head.nod),
+      Math.abs(next.head.tilt - previous.head.tilt),
     );
     const finger = Math.max(
       ...(["left", "right"] as const).flatMap((s) =>
@@ -94,6 +124,35 @@ export function planMotion(start: Pose, motion: Motion) {
       (turn * 1.875) / 0.8,
       (finger * 1.875) / 2,
       (directionAngle * 1.875) / 3,
+      ...(["leftFoot", "rightFoot"] as const).map(
+        (s) =>
+          (new Vector3(...previous[s].position).distanceTo(
+            new Vector3(...next[s].position),
+          ) *
+            1.875) /
+          0.18,
+      ),
+      (new Vector3(...previous.pelvis.offset).distanceTo(
+        new Vector3(...next.pelvis.offset),
+      ) *
+        1.875) /
+        0.12,
+      ...(["bend", "twist", "lean"] as const).map(
+        (k) => (Math.abs(next.torso[k] - previous.torso[k]) * 1.875) / 0.5,
+      ),
+      (Math.abs(next.pelvis.yaw - previous.pelvis.yaw) * 1.875) / 0.5,
+      ...(["left", "right"] as const).map(
+        (s) =>
+          (Math.abs(next.shoulders[s] - previous.shoulders[s]) * 1.875) / 0.5,
+      ),
+      ...(["left", "right"] as const).map(
+        (s) => (Math.abs(next[s].roll - previous[s].roll) * 1.875) / 2,
+      ),
+      ...(["leftFoot", "rightFoot"] as const).flatMap((s) =>
+        (["yaw", "pitch"] as const).map(
+          (k) => (Math.abs(next[s][k] - previous[s][k]) * 1.875) / 0.5,
+        ),
+      ),
     );
     const segment = { from: previous, to: next, start: elapsed, duration };
     elapsed += duration;
@@ -138,6 +197,8 @@ export function createMotionController(): MotionController {
         );
       return new Promise<MotionResult>((resolve) => {
         const started = performance.now();
+        let previousTime = 0;
+        const reasons = new Set<string>();
         let frame = 0,
           done = false,
           constrained = duration > motion.waypoints.at(-1)!.time + 0.001;
@@ -147,11 +208,13 @@ export function createMotionController(): MotionController {
           cancelAnimationFrame(frame);
           signal?.removeEventListener("abort", abort);
           cancel = undefined;
+          if (status === "interrupted") driver?.halt?.();
           resolve({
             status,
             pose: structuredClone(current),
             constrained,
             duration: (performance.now() - started) / 1000,
+            reasons: [...reasons],
           });
         };
         const abort = () => finish("interrupted");
@@ -169,11 +232,23 @@ export function createMotionController(): MotionController {
           );
           const applied = driver!.apply(
             interpolate(segment.from, segment.to, ease(t)),
+            Math.min(0.033, Math.max(0.001, time - previousTime)),
           );
+          previousTime = time;
           current = applied.pose;
           constrained ||= applied.constrained;
-          if (time >= duration) finish("completed");
-          else frame = requestAnimationFrame(tick);
+          applied.reasons?.forEach((reason) => reasons.add(reason));
+          if (
+            time >= duration &&
+            (applied.settled !== false || time >= duration + 3)
+          ) {
+            if (applied.settled === false) {
+              constrained = true;
+              reasons.add("Movement stopped before the target settled");
+              driver!.halt?.();
+            }
+            finish("completed");
+          } else frame = requestAnimationFrame(tick);
         };
         frame = requestAnimationFrame(tick);
       });

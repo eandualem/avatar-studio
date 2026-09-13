@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Vector3 } from "three";
-import { solveArm } from "@/lib/ik";
 import {
   createMotionController,
   interpolate,
@@ -14,41 +13,57 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-describe("reachable and degenerate arm targets", () => {
-  it("preserves both segment lengths and reaches targets across the workspace", () => {
-    const shoulder = new Vector3(0.107, 0.737, -0.0045),
-      pole = new Vector3(0.324, 0.414, 0.063);
-    for (const target of [
-      new Vector3(0.198, 0.455, 0.022),
-      new Vector3(0.29, 0.83, 0.07),
-      new Vector3(0.12, 0.65, 0.28),
-      shoulder.clone(),
-      new Vector3(2, 2, 2),
-    ]) {
-      const { elbow, wrist } = solveArm(shoulder, target, pole, 0.16, 0.15);
-      expect(elbow.distanceTo(shoulder)).toBeCloseTo(0.16, 10);
-      expect(wrist.distanceTo(elbow)).toBeCloseTo(0.15, 10);
-      expect(wrist.distanceTo(shoulder)).toBeLessThanOrEqual(0.309800001);
-      if (
-        target.distanceTo(shoulder) > 0.0102 &&
-        target.distanceTo(shoulder) < 0.3098
-      )
-        expect(wrist.distanceTo(target)).toBeLessThan(1e-10);
-    }
-  });
-  it("has a stable fallback when the elbow pole lies along the arm", () => {
-    const result = solveArm(
-      new Vector3(),
-      new Vector3(0, 0.25, 0),
-      new Vector3(0, 1, 0),
-      0.2,
-      0.2,
-    );
-    expect(result.elbow.toArray().every(Number.isFinite)).toBe(true);
-    expect(result.wrist.distanceTo(result.elbow)).toBeCloseTo(0.2, 10);
-  });
-});
 describe("motion composition", () => {
+  it("preserves leg and torso channels and limits rotation timing", () => {
+    const plan = planMotion(restPose(), {
+      waypoints: [
+        {
+          time: 0.2,
+          pelvis: { offset: [-0.085, -0.015, 0], yaw: 0.4 },
+          torso: { bend: 0.2, twist: 0, lean: 0 },
+          head: { yaw: 0, nod: 0, tilt: 0.2 },
+        },
+        { time: 0.4, leftFoot: { position: [0.11, 0.2, 0.055] } },
+      ],
+    });
+    expect(plan[0].duration).toBeGreaterThanOrEqual((0.4 * 1.875) / 0.5);
+    expect(plan[1].to.pelvis).toEqual(plan[0].to.pelvis);
+    expect(plan[1].to.torso).toEqual(plan[0].to.torso);
+    expect(plan[1].to.head.tilt).toBe(0.2);
+    expect(plan[1].to.rightFoot).toEqual(restPose().rightFoot);
+    for (const point of [
+      { leftFoot: { position: [0, -1, 0] } },
+      { pelvis: { offset: [0, -1, 0], yaw: 0 } },
+      { torso: { bend: 2, twist: 0, lean: 0 } },
+      { left: { roll: 2 } },
+      { shoulders: { left: 2, right: 0 } },
+    ])
+      expect(
+        motionSchema.safeParse({ waypoints: [{ time: 1, ...point }] }).success,
+      ).toBe(false);
+  });
+  it("reports incomplete settling instead of claiming the target was reached", async () => {
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
+    vi.stubGlobal("requestAnimationFrame", (cb: () => void) =>
+      setTimeout(cb, 16),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    const controller = createMotionController(),
+      halt = vi.fn();
+    controller.attach({
+      apply: () => ({ pose: restPose(), constrained: false, settled: false }),
+      dispose: vi.fn(),
+      halt,
+    });
+    const result = controller.execute({ waypoints: [{ time: 0.2 }] });
+    await vi.advanceTimersByTimeAsync(3300);
+    expect(await result).toMatchObject({
+      status: "completed",
+      constrained: true,
+      reasons: ["Movement stopped before the target settled"],
+    });
+    expect(halt).toHaveBeenCalledOnce();
+  });
   it("rejects invalid numbers, reversed times, excess curls and zero directions", () => {
     for (const waypoints of [
       [{ time: 1, left: { position: [Infinity, 1, 0] } }],

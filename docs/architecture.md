@@ -12,14 +12,17 @@ responses appear after each model turn; token streaming is not implemented yet.
 
 Each request supplies `host_context`: the actual pose, useful landmarks,
 the coordinate system, and JSON schemas for `move_avatar` and `get_pose`. The
-model can produce up to 16 timed waypoints, combining either hand's position,
-finger direction, five independent finger curls, and head yaw/nod. There are no
+model can produce up to 16 timed waypoints, combining hand positions, finger
+direction/curls and palm roll; ankle positions/yaw/pitch; pelvis offset/yaw;
+torso bend/twist/lean; shoulder lift; and head yaw/nod/tilt. There are no
 gesture names or motion clips in that API. Welcome suggestions are ordinary
 messages sent to the model, not frontend gesture handlers.
 
 The runtime hands over a pending host action. The frontend validates it, waits
 for movement to finish, and resumes the same assistant message with an
-execution receipt containing the actual pose and constrained/interrupted status.
+execution receipt containing the actual pose, constrained/interrupted status,
+and reasons when motion is limited. A target that fails to settle within three
+extra seconds is stopped and explicitly reported as constrained.
 Duplicate call IDs reuse their receipt within a turn. A turn is limited to 12
 host executions. Invalid calls return a failed tool result.
 
@@ -32,22 +35,36 @@ replay unfinished movements. Each new motion starts from the current actual pose
 
 One unit equals the robot's approximate height. X is positive to the robot's
 left (viewer right), Y is up from the floor, and Z points toward the viewer.
-The renderer uses analytic two-link arm IK with a preferred elbow position
-below and outside the shoulder. It preserves bone lengths and rigid panels.
+`lib/body/` adapts the open-source closed-chain-ik DLS solver to the actual GLB
+skeleton. Arms and legs use bounded joints in rest-aligned anatomical frames.
+Elbows and knees have one rotational degree of freedom and cannot reverse their
+bend. Feet solve position and orientation together. Pelvis and torso changes
+move the chain roots while omitted foot targets stay planted in world space.
+Bone lengths and rigid panels are preserved.
 
-Quintic waypoint interpolation extends durations to limit requested hand speed,
-head rotation, finger curling, and hand-direction changes. The controller clamps
-arm reach and limits hand swing to 35 degrees from the forearm. These are
-presentation constraints, **not a complete anatomical model**. IK conditioning
-near a straight arm can still create fast joint rotation when the hand moves
-slowly. Full joint velocity/acceleration limits, forearm twist, self-collision,
-coupled shoulder motion and balance remain improvements.
+The solver starts from its previous joint values and uses a comfortable rest-pose
+bias. Each angular DoF moves at most 2.1 radians/second with a velocity ramp;
+this is not a strict acceleration/jerk guarantee. Quintic waypoint interpolation
+also extends durations to slow Cartesian targets and the other body channels.
+Wrist swing stays within 35 degrees in the forearm frame; palm roll stays within
+±0.6 radians. Swing/twist is reprojected after interpolation to keep those limits.
+The palm follows the forearm instead of trying to maintain a fixed world normal.
 
-Only hands, fingers, and head are exposed. Walking, leg/torso control, independent
-palm roll, face expressions, speech audio and lip-sync are not implemented.
-The default elbow preference and palm orientation can look stiff for unusual
-targets. The model is instructed to avoid torso crossings; geometry does not
-yet enforce that preference.
+Rapier shape queries test approximate torso/head/limb capsules, boot sole corners
+against the floor, and an approximate weighted body center against the convex
+hull of grounded soles. A rejected frame restores the last accepted pose and
+solver state. This conservative rejection can stop several channels together;
+it does not plan a path around an obstacle. Lift a foot only after shifting the
+pelvis toward the foot that stays planted. A shallow crouch generally needs a
+backward hip shift as well as a downward one.
+
+These are **configured presentation constraints, not complete human anatomy or
+dynamic physics**. Capsules do not cover every shell/finger contact; the support
+test is a static approximation. Walking, running, jumping, falling, arbitrary
+environment interaction, and guaranteed natural movement remain unsupported.
+The boots are rigid, so individual toes do not articulate. Facial expressions,
+speech playback and lip-sync remain future work. See [solver selection and
+limits](motion-solvers.md) for the candidate comparison and follow-up directions.
 
 ## State and persistence
 
@@ -71,7 +88,10 @@ voice. Speech playback and lip-sync are future work.
 
 ## Verification
 
-`bun run test` checks IK lengths/reach, malformed targets, interpolation,
+`bun run test` exercises the actual exported skeleton through crouches, both
+leg lifts, wrist reversals and blocked torso crossings. Every sampled frame is
+checked for joint bounds/rates, wrist bounds, floor contact, collisions and
+support. It also checks malformed targets, interpolation,
 replacement-motion continuity, tool continuation and duplicate suppression,
 cancellation races, microphone lifecycle, and the actual exported GLB contents.
 `bun run typecheck`, `bun run lint`, and `bun run build` are required checks.

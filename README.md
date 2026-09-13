@@ -1,8 +1,8 @@
 # Avatar Studio
 
 Charlie is an assistant with a live 3D robot body. Talk through an idea in text,
-dictate a message, or ask Charlie to move. The assistant composes hand, finger
-and head motion through frontend tools; the browser solves the pose each frame.
+dictate a message, or ask Charlie to move. The assistant composes hand, finger,
+leg, torso and head motion through frontend tools; the browser solves each pose.
 There are no baked animation clips or a fixed gesture menu.
 
 Built with Next.js, Three.js and XState, backed by
@@ -37,18 +37,24 @@ application; public deployment and authentication are outside this milestone.
 
 Try: “Raise your left hand, point up with your index finger, and look toward it.”
 Then: “Relax both hands slowly.” Stop interrupts movement and the current reply.
+Also try: “Crouch slightly with both feet flat,” or “Shift your weight onto your
+right foot, then slowly lift your left foot and hold it.”
 The microphone fills the composer for editing before sending.
 
 ## Current scope
 
 - Approved 65-bone robot with all 134 rigid shell pieces, exported as GLB.
-- Model-created continuous hand targets, five finger curls per hand, and head angles.
-- Reach and wrist constraints, smooth transitions, cancellation, typed chat and local history.
+- Model-created hand and ankle targets, finger curls, palm roll, pelvis shifts,
+  torso bends/twists, shoulder lift and head angles.
+- Bounded IK from closed-chain-ik, one-way elbow/knee hinges, wrist limits,
+  and Rapier checks for approximate self-collision and planted-foot support.
+- Smooth transitions, cancellation, typed chat and local history.
 - Browser microphone dictation, where SpeechRecognition is supported.
 
-Full anatomical limits, collision avoidance, walking, facial shapes, realtime
-speech and lip-sync remain future work. Responses arrive per model turn rather
-than streaming token by token. See [architecture and limits](docs/architecture.md).
+Complete anatomical modelling, dynamic walking/balance, detailed mesh collision,
+facial shapes, realtime speech and lip-sync remain future work. Responses arrive per model turn rather
+than streaming token by token. See [architecture and limits](docs/architecture.md)
+and [solver selection](docs/motion-solvers.md).
 
 ## Checks and asset rebuild
 
