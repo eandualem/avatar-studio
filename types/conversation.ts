@@ -17,11 +17,14 @@ export const messageSchema = z.object({
   id: z.string(),
   role: z.enum(["user", "assistant"]),
   content: z.string(),
+  source: z.enum(["voice", "backend"]).optional(),
 });
 export const conversationSchema = z.object({
   id: z.string(),
   title: z.string(),
   messages: z.array(messageSchema).max(400),
+  mode: z.enum(["text", "voice"]).optional(),
+  voiceCalls: z.array(z.string()).max(100).optional(),
 });
 export const historySchema = z.array(conversationSchema).max(50);
 export type Message = z.infer<typeof messageSchema>;

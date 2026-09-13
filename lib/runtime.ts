@@ -13,24 +13,32 @@ export async function sendTurn(
   signal: AbortSignal,
   continuation?: { pending: Pending; receipt: ToolReceipt },
 ) {
-  const response = await fetch("/api/runtime/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    signal,
-    body: JSON.stringify({
-      id: crypto.randomUUID(),
-      session_id: conversation.id,
-      content: continuation ? "" : conversation.messages.at(-1)!.content,
-      host_context: hostContext(controller),
-      ...(continuation
-        ? {
-            tool_call_id: continuation.pending.call_id,
-            tool_result: continuation.receipt.result,
-            tool_outcome: continuation.receipt.outcome,
-          }
-        : {}),
-    }),
-  });
+  const response = await fetch(
+    conversation.mode === "voice"
+      ? "/api/runtime/voice-chat"
+      : "/api/runtime/chat",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({
+        id: crypto.randomUUID(),
+        session_id: conversation.id,
+        content: continuation ? "" : conversation.messages.at(-1)!.content,
+        host_context: hostContext(
+          controller,
+          conversation.mode === "voice" ? conversation.messages : undefined,
+        ),
+        ...(continuation
+          ? {
+              tool_call_id: continuation.pending.call_id,
+              tool_result: continuation.receipt.result,
+              tool_outcome: continuation.receipt.outcome,
+            }
+          : {}),
+      }),
+    },
+  );
   const body = await response.json();
   if (!response.ok) {
     const detail =
@@ -53,12 +61,15 @@ export async function sendTurn(
   if (result.error) throw new Error(result.error);
   return result;
 }
-export async function cancelTurn(id: string) {
-  const response = await fetch("/api/runtime/cancel", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: id }),
-  });
+export async function cancelTurn(id: string, mode?: Conversation["mode"]) {
+  const response = await fetch(
+    mode === "voice" ? "/api/runtime/voice-cancel" : "/api/runtime/cancel",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: id }),
+    },
+  );
   if (!response.ok)
     throw new Error("Could not confirm cancellation with the assistant.");
 }

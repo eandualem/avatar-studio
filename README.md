@@ -1,7 +1,7 @@
 # Avatar Studio
 
-Charlie is an assistant with a live 3D robot body. Talk through an idea in text,
-dictate a message, or ask Charlie to move. The assistant composes hand, finger,
+Charlie is an assistant with a live 3D robot body. Talk through an idea live,
+write or dictate a message, or ask Charlie to move. The assistant composes hand, finger,
 leg, torso and head motion through frontend tools; the browser solves each pose.
 There are no baked animation clips or a fixed gesture menu.
 
@@ -41,6 +41,13 @@ Also try: “Crouch slightly with both feet flat,” or “Shift your weight ont
 right foot, then slowly lift your left foot and hold it.”
 The microphone fills the composer for editing before sending.
 
+For direct audio, enable assistant-runtime's **GPT-Live 1** integration and select
+**Talk live**. It connects microphone and speaker, displays spoken fragments and
+backend answers, and lets the assistant use Charlie's existing movement tools.
+Mute, stop delegated movement, or end the call from the live controls.
+See [voice setup and limits](docs/voice.md). OpenAI API access is required;
+credentials stay in the runtime. No microphone starts automatically.
+
 ## Current scope
 
 - Approved 65-bone robot with all 134 rigid shell pieces, exported as GLB.
@@ -50,10 +57,11 @@ The microphone fills the composer for editing before sending.
   and Rapier checks for approximate self-collision and planted-foot support.
 - Smooth transitions, cancellation, typed chat and local history.
 - Browser microphone dictation, where SpeechRecognition is supported.
+- GPT-Live audio, transcripts, delegated body actions and explicit call controls.
 
 Complete anatomical modelling, dynamic walking/balance, detailed mesh collision,
-facial shapes, realtime speech and lip-sync remain future work. Responses arrive per model turn rather
-than streaming token by token. See [architecture and limits](docs/architecture.md)
+facial shapes and lip-sync remain future work. Written backend responses arrive
+per model turn; live speech transcripts arrive as fragments. See [architecture and limits](docs/architecture.md)
 and [solver selection](docs/motion-solvers.md).
 
 ## Checks and asset rebuild

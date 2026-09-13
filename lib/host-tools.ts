@@ -1,5 +1,5 @@
 import { motionSchema, type MotionController } from "@/types/avatar";
-import type { Pending, ToolReceipt } from "@/types/conversation";
+import type { Pending, ToolReceipt, Message } from "@/types/conversation";
 import { restPose } from "./motion";
 
 const vector = {
@@ -135,7 +135,10 @@ export const actions = [
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 ];
-export function hostContext(controller: MotionController) {
+export function hostContext(
+  controller: MotionController,
+  visibleHistory?: Message[],
+) {
   return {
     version: 1,
     host: { name: "avatar-studio", kind: "browser", version: "0.2.0" },
@@ -143,6 +146,16 @@ export function hostContext(controller: MotionController) {
       name: "conversation",
       description: "A written conversation beside Charlie, a live robot.",
       data: {
+        ...(visibleHistory?.length
+          ? {
+              recent_visible_messages: visibleHistory
+                .slice(-12)
+                .map(({ role, content }) => ({
+                  role,
+                  content: content.slice(-400),
+                })),
+            }
+          : {}),
         coordinates:
           "X robot left (viewer right), Y up, Z forward toward viewer. Ground y=0. Height=1. Radians for angles. Pelvis offset is relative to standing, all hand/foot targets are absolute.",
         current_pose: controller.pose(),
