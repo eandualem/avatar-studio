@@ -757,3 +757,76 @@ it("retains one assistant message across streamed host continuations", async () 
   ]);
   await client.end();
 });
+
+it.each(["pending_host", "cancelled"])(
+  "recheck: retains only current %s work when speech makes the cancel snapshot stale",
+  async (status) => {
+    const body = controller(),
+      client = new VoiceClient("session", body);
+    await client.start();
+    let finishCancel!: (value: unknown) => void;
+    let finishSnapshot!: (value: unknown) => void;
+    const state = {
+      status: "active",
+      cursor: 20,
+      transcript: [],
+      active_delegation: "d2",
+      delegations: { d2: { status: "pending_host" } },
+      pending_tool_call: pending,
+    };
+    let reads = 0;
+    vi.mocked(voiceRequest).mockImplementation(async (path) => {
+      if (path.endsWith("/cancel"))
+        return new Promise((resolve) => {
+          finishCancel = resolve;
+        });
+      if (path === `calls/${callId}`) {
+        if (reads++ === 0)
+          return new Promise((resolve) => {
+            finishSnapshot = resolve;
+          });
+        return {
+          ...state,
+          cursor: 21,
+          transcript: [
+            { role: "user", delta: "still here", start_ms: 0, end_ms: 250 },
+          ],
+        };
+      }
+      return { finalized: true, accepted: true };
+    });
+    const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
+    try {
+      const cancellation = client.cancelWork();
+      receive(
+        20,
+        event("delegation", {
+          id: "d2",
+          status: "pending_host",
+          pending_tool_call: pending,
+        }),
+      );
+      finishCancel({ cancelled: true });
+      await flush();
+      if (status === "cancelled")
+        receive(21, event("delegation", { id: "d2", status: "cancelled" }));
+      receive(
+        22,
+        event("transcript", {
+          role: "user",
+          delta: "still here",
+          start_ms: 0,
+          end_ms: 250,
+        }),
+      );
+      finishSnapshot(state);
+      await cancellation;
+      await flush();
+      expect(body.execute).toHaveBeenCalledTimes(
+        status === "pending_host" ? 1 : 0,
+      );
+    } finally {
+      await client.end();
+    }
+  },
+);

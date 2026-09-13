@@ -38,6 +38,7 @@ export class VoiceClient {
   private cancelling = false;
   private actions = new Map<string, Action>();
   private activeDelegation = "";
+  private pendingAction?: { delegation: string; tool: Pending };
   private fragments: VoiceFragment[] = [];
   private answers = new VoiceReplies(() => this.callId);
   private eventCursor = 0;
@@ -311,6 +312,10 @@ export class VoiceClient {
       if (["running", "waiting", "pending_host"].includes(delegation.status)) {
         if (this.activeDelegation !== delegation.id) this.abortActions();
         this.activeDelegation = delegation.id;
+        this.pendingAction =
+          delegation.status === "pending_host" && delegation.pending_tool_call
+            ? { delegation: delegation.id, tool: delegation.pending_tool_call }
+            : undefined;
         this.update({
           work:
             delegation.status === "pending_host"
@@ -330,10 +335,12 @@ export class VoiceClient {
         for (const action of this.actions.values())
           if (action.delegation === delegation.id && !action.submitted)
             action.abort.abort();
-        if (this.activeDelegation === delegation.id) this.update({ work: "" });
+        if (this.activeDelegation === delegation.id) {
+          this.pendingAction = undefined;
+          this.update({ work: "" });
+        }
       }
-      if (delegation.status === "pending_host" && delegation.pending_tool_call)
-        void this.perform(delegation.id, delegation.pending_tool_call);
+      if (delegation.status === "pending_host") this.performPending();
     } else if (event === "snapshot") {
       this.fragments = Array.isArray(data.transcript)
         ? data.transcript.map((item) => fragmentSchema.parse(item))
@@ -359,13 +366,16 @@ export class VoiceClient {
             : "",
       });
       // Only reconcile the snapshot's current pending action, never historical entries.
-      if (state?.status === "pending_host" && data.pending_tool_call)
-        void this.perform(
-          active,
-          delegationSchema.shape.pending_tool_call.parse(
-            data.pending_tool_call,
-          )!,
-        );
+      this.pendingAction =
+        state?.status === "pending_host" && data.pending_tool_call
+          ? {
+              delegation: active,
+              tool: delegationSchema.shape.pending_tool_call.parse(
+                data.pending_tool_call,
+              )!,
+            }
+          : undefined;
+      this.performPending();
     } else if (event === "status") this.applyStatus(data);
     else if (event === "usage")
       this.update({
@@ -379,6 +389,7 @@ export class VoiceClient {
   }
   private applyStatus(data: Record<string, unknown>) {
     if (data.status === "closed" || data.status === "interrupted") {
+      this.pendingAction = undefined;
       this.abortActions();
       this.update({
         remoteClosed: true,
@@ -395,6 +406,10 @@ export class VoiceClient {
     for (const action of this.actions.values())
       if (!action.submitted) action.abort.abort();
     this.controller.stop();
+  }
+  private performPending() {
+    if (this.pendingAction)
+      void this.perform(this.pendingAction.delegation, this.pendingAction.tool);
   }
   private async perform(delegation: string, pending: Pending) {
     const key = `${delegation}:${pending.call_id}`;
@@ -478,6 +493,7 @@ export class VoiceClient {
   }
   async cancelWork() {
     this.cancelling = true;
+    this.pendingAction = undefined;
     this.abortActions();
     this.update({ work: "" });
     try {
@@ -486,7 +502,10 @@ export class VoiceClient {
     } finally {
       this.cancelling = false;
     }
-    if (this.callId && !this.ending) await this.reconcile();
+    if (this.callId && !this.ending) {
+      await this.reconcile();
+      this.performPending();
+    }
   }
   private leave = () => {
     this.ending = true;
