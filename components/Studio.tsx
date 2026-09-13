@@ -157,7 +157,7 @@ function Workspace() {
         </div>
         <canvas
           ref={canvasRef}
-          aria-label="Live 3D robot with movable hands, fingers and head"
+          aria-label="Live 3D robot with movable arms, hands, legs, torso and head"
         />
         {avatarState === "failed" && (
           <div className="avatar-error">

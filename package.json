@@ -11,14 +11,16 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "@xstate/react": "^6.0.0",
+    "closed-chain-ik": "github:gkjohnson/closed-chain-ik-js#97f388c01da85fb4b3f6832ca2dc3afb5a543b38",
+    "lucide-react": "^0.544.0",
     "next": "^16.1.6",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "three": "^0.183.0",
     "xstate": "^5.28.0",
-    "@xstate/react": "^6.0.0",
-    "zod": "^3.24.1",
-    "lucide-react": "^0.544.0"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
