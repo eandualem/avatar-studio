@@ -1,0 +1,85 @@
+{
+  "bones": 65,
+  "rigid_parts": 134,
+  "baked_actions": 0,
+  "cases": [
+    {
+      "requested_left_wrist": [
+        1.649999976158142,
+        -0.3499999940395355,
+        4.650000095367432
+      ],
+      "actual_left_wrist": [
+        1.6499993801116943,
+        -0.34999987483024597,
+        4.650000095367432
+      ],
+      "clamped": false,
+      "target_error": 4.851466594964178e-07,
+      "max_rigid_panel_distance_error": 7.359175755450309e-07
+    },
+    {
+      "requested_left_wrist": [
+        2.200000047683716,
+        -0.6000000238418579,
+        3.9000000953674316
+      ],
+      "actual_left_wrist": [
+        2.1999998092651367,
+        -0.6000000238418579,
+        3.8999998569488525
+      ],
+      "clamped": false,
+      "target_error": 3.371747880871523e-07,
+      "max_rigid_panel_distance_error": 6.687427336476981e-07
+    },
+    {
+      "requested_left_wrist": [
+        0.8500000238418579,
+        -1.5,
+        4.0
+      ],
+      "actual_left_wrist": [
+        0.8500000834465027,
+        -1.4999994039535522,
+        4.0
+      ],
+      "clamped": false,
+      "target_error": 5.990192664337689e-07,
+      "max_rigid_panel_distance_error": 7.359175755450309e-07
+    },
+    {
+      "requested_left_wrist": [
+        0.8999999761581421,
+        -0.15000000596046448,
+        4.099999904632568
+      ],
+      "actual_left_wrist": [
+        0.8999994993209839,
+        -0.15000028908252716,
+        4.100000381469727
+      ],
+      "clamped": false,
+      "target_error": 7.313723082427995e-07,
+      "max_rigid_panel_distance_error": 8.784173868292555e-07
+    },
+    {
+      "requested_left_wrist": [
+        8.0,
+        -4.0,
+        9.0
+      ],
+      "actual_left_wrist": [
+        1.945816159248352,
+        -0.7093465328216553,
+        4.991170406341553
+      ],
+      "clamped": true,
+      "target_error": 4.805480091749757e-07,
+      "max_rigid_panel_distance_error": 7.359175755450309e-07
+    }
+  ],
+  "independent_finger_curls": true,
+  "history_independent_demo": true,
+  "limits": "Upper-body procedural proof. No collision avoidance, balance, locomotion, speech timing, or browser integration validated."
+}

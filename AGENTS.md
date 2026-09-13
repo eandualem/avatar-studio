@@ -12,9 +12,41 @@ rigged and carries ARKit and Oculus viseme blend shapes, exported as GLB,
 rendered in the browser by [TalkingHead](https://github.com/met4citizen/talkinghead)
 with real-time lip-sync from the OpenAI Realtime API, inside a Next.js and
 XState app that follows design-studio's architecture. The backend already
-exists: the runtime. **None of that is the current milestone.**
+exists: the runtime. Body rigging is now authorized; facial shapes and the app
+remain later work.
 
-## Current milestone (set by Elias, 2026-09-13): the character in Blender
+## Current milestone 2 (approved by Elias, 2026-09-13): Mixamo body rig and motions
+
+Elias approved the character after reviewing milestone 1 and asked to progress
+to Mixamo rigging, import it back into Blender, and check the motions.
+
+- Hide the starter cube from the viewport as well as renders and exports.
+- Prepare a clean character-only neutral upload for Mixamo. A connected proxy
+  may be used for auto-rigging while the approved shell pieces remain intact.
+- Import the Mixamo skeleton and keep hard shell panels rigid. Elias redirected
+  motion work toward procedural controls after the animation download failed:
+  prove target-driven hand movement, finger control, and head motion in Blender.
+- Save the rigged review scene, reproducible preparation/import/control code,
+  source skeleton, and procedural preview with remaining limitations. Downloaded
+  motion clips are optional fallback material, not a requirement for this step.
+- Stop at body-motion review. Do not add facial blend shapes, lip-sync, a GLB
+  integration, or the web app in this step.
+
+The previous stop before rigging is superseded by Elias's explicit approval.
+Issue #3 tracks this work. Apply the Blender working rules below to this phase.
+
+### Direction for the next application milestone
+
+Preserve the approved robot and app design. Expose frontend actions through
+assistant-runtime so the assistant can express itself by setting movement
+targets, hand/finger poses, gaze, and timing. Prefer runtime-generated motion
+over selecting baked clips. The frontend should solve and smooth motion each
+frame; the LLM chooses intent and parameters. Written responses remain part
+of the existing design. Prebuilt motions are an acceptable fallback where
+procedural motion becomes impractical. This direction does not start the web
+app or facial/lip-sync work during the current Blender milestone.
+
+## Approved milestone 1: the character in Blender
 
 Build the robot in `references/robot-turnaround.png` (front, side, back,
 three-quarter) as a clean hard-surface model in Blender, lit and rendered
@@ -33,8 +65,8 @@ Done means:
 4. A short `NOTES.md` in `blender/`: what matched, what did not, what you
    would change with more budget.
 
-Then stop and report. Elias reviews the character before rigging starts.
-Do not rig, add blend shapes, export or touch the web app in this milestone.
+This milestone was delivered in PR #2 and approved by Elias. Its geometry and
+reference images remain the visual specification for rigging.
 
 ### What the reference shows
 
