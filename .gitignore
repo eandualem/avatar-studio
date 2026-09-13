@@ -1,6 +1,8 @@
 .tmp/
 *.blend1
 *.blend@
+__pycache__/
+*.pyc
 .DS_Store
 node_modules/
 .next/
