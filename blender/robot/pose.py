@@ -19,7 +19,7 @@ def set_pose(name='neutral'):
     if name == 'hero':
         for obj in objects:
             if obj.name.startswith('Head.'):
-                rotate(obj, (0, .025, 4.51), -.12, 'Y')
+                rotate(obj, (0, .025, 4.51), .12, 'Y')
             if obj.name.startswith('Arm.L.'):
                 if any(word in obj.name for word in ('.Hand', '.Finger', '.Thumb')):
                     rotate(obj, (1.251, -.015, 2.46), math.pi, Vector((.17, 0, -.98)))

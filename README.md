@@ -7,14 +7,15 @@ real-time lip-sync, and [assistant-runtime](https://github.com/eandualem/assista
 behind it. A sibling of [Design Studio](https://github.com/eandualem/design-studio),
 same stack, same discipline: one screen, no accounts, small on purpose.
 
-**Status (2026-09-13):** milestone 1, the character. An agent on
-[agent-backbone](https://github.com/eandualem/agent-backbone) is building
-the robot in `references/` inside Blender. Nothing else exists yet.
+**Status (2026-09-13):** the procedural Blender character and five Cycles
+renders are ready for Elias's visual review. See the
+[turnaround](renders/turnaround.png), [hero](renders/hero.png), and
+[modeling notes](blender/NOTES.md). Rigging starts only after character review.
 
 ## Pipeline
 
 1. **Character** — hard-surface model built by code in Blender, rendered to
-   match the reference sheet. *(now)*
+   match the reference sheet. *(ready for review)*
 2. **Rig** — body rig (Mixamo or Rigify), ARKit 52 + Oculus viseme blend
    shapes on the face.
 3. **Export** — GLB with the rig and shapes TalkingHead expects.
@@ -34,6 +35,9 @@ scripts/bl run blender/robot/build.py  # run code inside Blender
 scripts/bl shot .tmp/view.png          # look at the viewport
 scripts/bl render renders/front.png --engine CYCLES
 ```
+
+The complete workflow, camera names, static hero pose, and validation command
+are in [blender/README.md](blender/README.md).
 
 The MCP server itself is optional; adapters for Claude Code (`.mcp.json`)
 and Codex (`.codex/config.toml`) are included.

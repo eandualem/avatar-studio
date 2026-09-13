@@ -59,9 +59,9 @@ def setup(c, m):
     world.node_tree.nodes['Background'].inputs[0].default_value = (.80, .76, .70, 1)
     world.node_tree.nodes['Background'].inputs[1].default_value = .20
     for name, location, size, energy, color in [
-        ('Key softbox', (-3.5, -4.5, 8), 4.5, 520, (1, .955, .90)),
-        ('Fill softbox', (4, -2, 5), 4, 220, (.92, .96, 1)),
-        ('Top rim', (1, 3, 7.5), 3.8, 500, (1, .96, .91)),
+        ('Key softbox', (-3.5, -4.5, 8), 4.5, 1300, (1, .955, .90)),
+        ('Fill softbox', (4, -2, 5), 4, 450, (.92, .96, 1)),
+        ('Top rim', (1, 3, 7.5), 3.8, 850, (1, .96, .91)),
         ('Front bounce', (0, -5, 3.5), 4, 35, (1, .98, .94)),
     ]:
         light = bpy.data.lights.new('Studio.' + name, 'AREA')
@@ -72,11 +72,11 @@ def setup(c, m):
         obj.location = location
         aim(obj, (0, 0, 3))
     for name, location, target, scale in [
-        ('Front', (0, -15, 3.45), (0, 0, 2.78), 6.3),
-        ('Side', (15, 0, 3.45), (0, 0, 2.78), 6.3),
-        ('Back', (0, 15, 3.45), (0, 0, 2.78), 6.3),
-        ('ThreeQuarter', (9, -15, 3.9), (0, 0, 2.78), 6.3),
-        ('Hero', (8, -18, 5.0), (0.12, 0, 2.8), 6.45),
+        ('Front', (0, -30, 4.0), (0, 0, 2.55), 6.65),
+        ('Side', (30, 0, 4.0), (0, 0, 2.55), 6.65),
+        ('Back', (0, 30, 4.0), (0, 0, 2.55), 6.65),
+        ('ThreeQuarter', (-18, -30, 4.8), (0, 0, 2.55), 6.65),
+        ('Hero', (-8, -18, 5.0), (0.12, 0, 2.8), 6.45),
     ]:
         data = bpy.data.cameras.new('Cam.' + name)
         data.type, data.ortho_scale, data.lens = 'ORTHO', scale, 70

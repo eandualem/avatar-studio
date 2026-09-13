@@ -31,7 +31,11 @@ def face_patch(name, ax, az, offset, col, mat):
             a = 1 + j * segments + i
             b = 1 + j * segments + (i + 1) % segments
             faces.append((a, a + segments, b + segments, b))
-    return g.mesh(name, vertices, faces, col, mat)
+    obj = g.mesh(name, vertices, faces, col, mat)
+    thickness = obj.modifiers.new('Visor wall thickness', 'SOLIDIFY')
+    thickness.thickness = .005
+    thickness.offset = -1
+    return obj
 
 
 def head(c, m):
@@ -67,8 +71,8 @@ def head(c, m):
 
 
 CHEST = [
-    (3.285, .280, .240, .015), (3.300, .363, .287, .015),
-    (3.345, .438, .327, .010), (3.50, .530, .393, .005),
+    (3.285, .150, .160, .015), (3.300, .280, .247, .015),
+    (3.345, .395, .310, .010), (3.50, .530, .393, .005),
     (3.75, .607, .423, .015), (4.02, .621, .401, .025),
     (4.21, .605, .337, .035), (4.265, .599, .305, .040),
     (4.308, .550, .260, .040), (4.345, .365, .190, .040),
