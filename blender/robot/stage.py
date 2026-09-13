@@ -51,20 +51,22 @@ def setup(c, m):
     for child in scene.collection.children:
         if child.name not in ('Robot', 'Studio'):
             child.hide_render = True
-    g.mesh('Studio.Cream floor', [(-200, -200, .018), (200, -200, .018), (200, 200, .018), (-200, 200, .018)], [(0, 1, 2, 3)], col, m['ground'])
+    floor = g.mesh('Studio.Cream floor', [(-200, -200, .018), (200, -200, .018), (200, 200, .018), (-200, 200, .018)], [(0, 1, 2, 3)], col, m['ground'])
+    floor.visible_glossy = False
     world = bpy.data.worlds.get('Studio.World') or bpy.data.worlds.new('Studio.World')
     scene.world = world
     world.use_nodes = True
     world.node_tree.nodes['Background'].inputs[0].default_value = (.80, .76, .70, 1)
-    world.node_tree.nodes['Background'].inputs[1].default_value = .45
+    world.node_tree.nodes['Background'].inputs[1].default_value = .20
     for name, location, size, energy, color in [
-        ('Key softbox', (-3.5, -4.5, 8), 4.5, 700, (1, .955, .90)),
-        ('Fill softbox', (4, -2, 5), 4, 440, (.92, .96, 1)),
-        ('Top rim', (1, 3, 7.5), 3.8, 850, (1, .96, .91)),
-        ('Front bounce', (0, -5, 3.5), 4, 90, (1, .98, .94)),
+        ('Key softbox', (-3.5, -4.5, 8), 4.5, 520, (1, .955, .90)),
+        ('Fill softbox', (4, -2, 5), 4, 220, (.92, .96, 1)),
+        ('Top rim', (1, 3, 7.5), 3.8, 500, (1, .96, .91)),
+        ('Front bounce', (0, -5, 3.5), 4, 35, (1, .98, .94)),
     ]:
         light = bpy.data.lights.new('Studio.' + name, 'AREA')
         light.energy, light.shape, light.size, light.color = energy, 'DISK', size, color
+        light.specular_factor = .28
         obj = bpy.data.objects.new('Studio.' + name, light)
         col.objects.link(obj)
         obj.location = location
@@ -90,7 +92,7 @@ def setup(c, m):
     scene.render.film_transparent = False
     scene.view_settings.view_transform = 'AgX'
     scene.view_settings.look = 'AgX - Medium High Contrast'
-    scene.view_settings.exposure = .35
+    scene.view_settings.exposure = .0
     scene.cycles.samples = 128
     scene.cycles.use_denoising = True
     scene.render.image_settings.color_mode = 'RGB'

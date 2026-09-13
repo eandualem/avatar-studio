@@ -1,5 +1,6 @@
 """Named shell assemblies, visible joints, face, and ten separate fingers."""
 import math
+import bpy
 from mathutils import Vector
 from . import geometry as g
 
@@ -69,8 +70,9 @@ CHEST = [
     (3.285, .280, .240, .015), (3.300, .363, .287, .015),
     (3.345, .438, .327, .010), (3.50, .530, .393, .005),
     (3.75, .607, .423, .015), (4.02, .621, .401, .025),
-    (4.21, .605, .337, .035), (4.285, .582, .285, .040),
-    (4.330, .470, .231, .040), (4.345, .265, .190, .040),
+    (4.21, .605, .337, .035), (4.265, .599, .305, .040),
+    (4.308, .550, .260, .040), (4.345, .365, .190, .040),
+    (4.355, .230, .150, .040),
 ]
 
 
@@ -100,6 +102,7 @@ def hands(side, s, c, m):
     cx, cy, cz = s * 1.252, -.015, 2.290
     g.ellipsoid(f'Arm.{side}.Hand palm', (cx, cy, cz), (.104, .148, .185), col, m['rubber'], e1=.65, e2=.7)
     g.ellipsoid(f'Arm.{side}.Hand dorsal plate', (cx + s * .065, cy + .005, cz + .015), (.069, .151, .176), col, m['shell'], e1=.62, e2=.65)
+    g.ellipsoid(f'Arm.{side}.Hand palm plate', (cx - s * .069, cy + .012, cz + .023), (.055, .122, .147), col, m['shell'], e1=.65, e2=.72)
     for i, (y, length) in enumerate([(-.112, .245), (-.038, .277), (.038, .255), (.112, .202)]):
         name = f'Arm.{side}.Finger.{i + 1}'
         p0 = (cx, y, 2.163)
@@ -125,7 +128,7 @@ def arms(c, m):
         prefix = f'Arm.{side}'
         g.ellipsoid(prefix + '.Shoulder ball', (s * .660, .020, 4.044), (.185, .234, .226), col, m['rubber'])
         g.cylinder(prefix + '.Shoulder socket', (s * .611, .02, 4.046), .252, .072, col, m['edge'], axis=(s, 0, 0))
-        g.limb(prefix + '.Upper shell', (s * .811, .025, 4.195), (s * 1.052, -.005, 3.389), .171, .205, .164, col, m['shell'], 1.06)
+        g.limb(prefix + '.Upper shell', (s * .795, .025, 4.235), (s * 1.052, -.005, 3.389), .189, .205, .164, col, m['shell'], 1.06, dome=True)
         elbow = (s * 1.083, -.010, 3.289)
         g.ellipsoid(prefix + '.Elbow rubber', elbow, (.145, .151, .159), col, m['rubber'])
         g.cylinder(prefix + '.Elbow axle', elbow, .110, .299, col, m['edge'], axis=(1, 0, 0))
@@ -140,7 +143,14 @@ def legs(c, m):
         prefix = f'Leg.{side}'
         hip = g.ellipsoid(prefix + '.Hip ball', (s * .370, .025, 2.773), (.255, .276, .308), col, m['rubber'])
         hip.rotation_euler.y = s * .52
-        g.limb(prefix + '.Thigh shell', (s * .437, .024, 2.827), (s * .506, .010, 1.736), .236, .276, .191, col, m['shell'], 1.01)
+        thigh = g.limb(prefix + '.Thigh shell', (s * .437, .024, 2.75), (s * .506, .010, 1.736), .236, .276, .191, col, m['shell'], 1.01)
+        # The upper rim slopes toward the crotch, exposing the diagonal hip joint.
+        rotation = thigh.rotation_euler.to_matrix()
+        for vertex in thigh.data.vertices:
+            weight = max(0, 1 - vertex.co.z / .40) ** 2
+            world_x = (rotation @ vertex.co).x
+            delta = Vector((0, 0, s * world_x * .72 * weight))
+            vertex.co += rotation.inverted() @ delta
         knee = (s * .514, -.014, 1.635)
         g.ellipsoid(prefix + '.Knee rubber', knee, (.173, .193, .190), col, m['rubber'], e1=.85)
         g.cylinder(prefix + '.Knee axle', knee, .129, .382, col, m['edge'], axis=(1, 0, 0))
@@ -165,3 +175,49 @@ def build(collections, materials):
     torso(collections, materials)
     arms(collections, materials)
     legs(collections, materials)
+    seams(collections, materials)
+
+
+def seams(c, m):
+    """Project hairlines onto evaluated shells so they follow the real curvature."""
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+
+    def project(name, obj_name, samples, axis, direction):
+        obj = bpy.data.objects[obj_name]
+        evaluated = obj.evaluated_get(depsgraph)
+        points = []
+        ray = Vector((0, direction, 0) if axis == 'Y' else (0, 0, direction))
+        for a, b in samples:
+            start = Vector((a, -direction * 3, b) if axis == 'Y' else (a, b, -direction * 7))
+            hit, location, normal, _ = evaluated.ray_cast(start, ray)
+            if hit:
+                points.append(obj.matrix_world @ (location + normal * .0004))
+        if len(points) > 2:
+            g.tube(name, points, .0017, c['details'], m['seam'])
+
+    # An almost invisible front service-panel outline, repeated on the back.
+    shape = []
+    for i in range(161):
+        t = math.tau * i / 160
+        z = 3.817 + .472 * g.signed_power(math.sin(t), .65)
+        x = .508 * g.signed_power(math.cos(t), .65) * (.83 + .17 * (z - 3.345) / .944)
+        shape.append((x, z))
+    for label, direction in [('Front', 1), ('Back', -1)]:
+        project('Detail.Chest panel seam.' + label, 'Torso.Egg chest shell', shape, 'Y', direction)
+    for side in ('L', 'R'):
+        for part in ('Upper shell', 'Forearm shell'):
+            name = f'Arm.{side}.{part}'
+            obj = bpy.data.objects[name]
+            height = max(v.co.z for v in obj.data.vertices)
+            samples = [(0, height * (.13 + .84 * i / 79)) for i in range(80)]
+            project(name + '.Panel seam', name, samples, 'Y', 1)
+        for part in ('Thigh shell', 'Shin shell'):
+            name = f'Leg.{side}.{part}'
+            obj = bpy.data.objects[name]
+            height = max(v.co.z for v in obj.data.vertices)
+            samples = [(0, height * (.05 + .91 * i / 79)) for i in range(80)]
+            project(name + '.Front seam', name, samples, 'Y', 1)
+            project(name + '.Back seam', name, samples, 'Y', -1)
+        name = f'Leg.{side}.Boot shell'
+        project(name + '.Toe seam', name, [(0, -.548 + .77 * i / 79) for i in range(80)], 'Z', -1)

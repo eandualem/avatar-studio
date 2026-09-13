@@ -122,12 +122,14 @@ def segment(name, start, end, radius, collection, material, depth_ratio=1):
     return obj
 
 
-def limb(name, start, end, r0, rm, r1, collection, material, depth_ratio=1):
+def limb(name, start, end, r0, rm, r1, collection, material, depth_ratio=1, dome=False):
     a, b = Vector(start), Vector(end)
     length = (b - a).length
     profile = [(0, r0 * .88), (.018, r0), (.10, r0 * 1.03),
                (.4, rm), (.7, rm * .99), (.90, r1 * 1.04),
                (.982, r1), (1, r1 * .86)]
+    if dome:
+        profile[:3] = [(0, r0 * .17), (.025, r0 * .59), (.08, r0 * .91), (.18, rm * .99)]
     obj = loft(name, [(z * length, r, r * depth_ratio, 0) for z, r in profile], collection, material)
     obj.location = a
     obj.rotation_euler = (b - a).to_track_quat('Z', 'Y').to_euler()

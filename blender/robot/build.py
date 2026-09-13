@@ -17,9 +17,10 @@ def build(save=True):
     bpy.context.view_layer.update()
     if save:
         root = Path(parts.__file__).resolve().parents[2]
-        bpy.ops.wm.save_as_mainfile(filepath=str(root / 'blender' / 'scene.blend'))
+        bpy.ops.wm.save_as_mainfile(filepath=str(root / 'blender' / 'scene.blend'), compress=True)
     print('Built', len(bpy.data.collections['Robot'].all_objects), 'named robot parts; five cameras.')
     return bpy.data.collections['Robot']
 
 
-build()
+if globals().get('__name__') in (None, '__main__'):
+    build()
