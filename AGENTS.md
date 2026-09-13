@@ -14,7 +14,14 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current milestone 5 (approved by Elias, 2026-09-13): GPT-Live voice
+## Current status (Elias, 2026-09-13)
+
+Elias confirmed the live interaction works after a real browser trial. Finish
+merging the acceptance record and stop. Animation quality is the next focus;
+Elias has deferred that work until tomorrow. Preserve the current implementation
+until he resumes it.
+
+## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction
 through assistant-runtime's completed GPT-Live integration. Issue #11 tracks it.
