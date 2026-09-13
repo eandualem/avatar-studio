@@ -54,6 +54,7 @@ def remove_owned(name):
 
 
 def prepare():
+    bpy.context.scene['procedural_review_enabled'] = False
     if 'Robot' not in bpy.data.collections:
         from robot.build import build
         build(save=False)

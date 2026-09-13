@@ -1,0 +1,15 @@
+{
+  "service": "Adobe Mixamo",
+  "date": "2026-09-13",
+  "uploaded_file": "exports/mixamo/robot-upload.fbx",
+  "uploaded_sha256": "7cef1a49f360269af8b9184aac4c8e69b59ba148181f7d36fbc4ca23e02459ef",
+  "rig_file": "robot-rig.fbx",
+  "rig_sha256": "b2090905d9e7bbf730662a776097e2e9c090bff557a628b33c31739ce11d1a79",
+  "rig_settings": {
+    "skeleton": "Standard Skeleton (65)",
+    "format": "FBX Binary",
+    "pose": "Original Pose"
+  },
+  "bones_verified_in_blender": 65,
+  "download": "Downloaded by Elias through Mixamo; automatic browser download was blocked."
+}

@@ -23,15 +23,28 @@ to Mixamo rigging, import it back into Blender, and check the motions.
 - Hide the starter cube from the viewport as well as renders and exports.
 - Prepare a clean character-only neutral upload for Mixamo. A connected proxy
   may be used for auto-rigging while the approved shell pieces remain intact.
-- Import the Mixamo skeleton and representative idle, walk, turn, and gesture
-  clips. Keep hard shell panels rigid and inspect all major joints and fingers.
-- Save the rigged Blender review scene, reproducible preparation/import code,
-  source animation files, and motion previews with any remaining limitations.
+- Import the Mixamo skeleton and keep hard shell panels rigid. Elias redirected
+  motion work toward procedural controls after the animation download failed:
+  prove target-driven hand movement, finger control, and head motion in Blender.
+- Save the rigged review scene, reproducible preparation/import/control code,
+  source skeleton, and procedural preview with remaining limitations. Downloaded
+  motion clips are optional fallback material, not a requirement for this step.
 - Stop at body-motion review. Do not add facial blend shapes, lip-sync, a GLB
   integration, or the web app in this step.
 
 The previous stop before rigging is superseded by Elias's explicit approval.
 Issue #3 tracks this work. Apply the Blender working rules below to this phase.
+
+### Direction for the next application milestone
+
+Preserve the approved robot and app design. Expose frontend actions through
+assistant-runtime so the assistant can express itself by setting movement
+targets, hand/finger poses, gaze, and timing. Prefer runtime-generated motion
+over selecting baked clips. The frontend should solve and smooth motion each
+frame; the LLM chooses intent and parameters. Written responses remain part
+of the existing design. Prebuilt motions are an acceptable fallback where
+procedural motion becomes impractical. This direction does not start the web
+app or facial/lip-sync work during the current Blender milestone.
 
 ## Approved milestone 1: the character in Blender
 

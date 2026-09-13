@@ -31,3 +31,24 @@ finite valid meshes; reversible static hero pose. Final images use Cycles,
 128 samples, and denoising. No armature, blend shapes, animation, or export.
 
 See [README.md](README.md) for rebuild, rendering, and verification commands.
+
+## Body rig and procedural proof — milestone 2
+
+Elias approved the visual design. The cube seen near the feet was the hidden-
+from-render starter cube; it is now hidden in the viewport too.
+
+The connected, spread-finger Mixamo proxy produced a verified 65-bone rig.
+All 134 approved panels/details are rigidly bound with their original materials.
+The editable neutral source remains separate. After the motion download failed,
+Elias chose to explore assistant-controlled expression generated from targets.
+The six-second preview raises and moves a hand through live arm solving, with
+parameterized palm direction, independent finger curls, and head yaw/nod.
+The rig has no baked animation actions or keyframes.
+
+The motion is still deliberately simple: the body and feet remain planted,
+and the demonstration supplies the trajectory. This is not yet live LLM control.
+It demonstrates the controls that a frontend tool could operate. No collision
+avoidance or whole-body balancing has been implemented. Extreme targets can
+produce shell overlap or joint gaps, and finger pivots need a close-up pass
+before gripping objects. Natural walking and speech-synchronized gestures
+remain future work. The approved app design stays the same.
