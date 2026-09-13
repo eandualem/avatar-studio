@@ -18,6 +18,8 @@ uv sync --locked --extra voice --extra dev
 
 Add `OPENAI_API_KEY` to the **runtime's** `.env` or server environment. Keep its
 backend model provider configured as well; GPT-Live delegates work to that model.
+Restart the runtime after changing its key; the running process does not reload
+the `.env` automatically.
 Set the following on a runtime started from that configured directory:
 
 ```bash
@@ -135,9 +137,23 @@ actor shutdown, microphone mute, unconfirmed closure, delegation supersession,
 lost acknowledgements, replay/snapshots, proxy boundaries and typed continuation
 routing. These tests use synthetic transport/media events, not OpenAI.
 
-Browser inspection verified the original layout, live setup controls, and
-missing-key feedback against a real voice-enabled runtime. The initial runtime
-reported `configured: false`, so actual provider negotiation, voice quality,
-latency, audio interruption and speech-directed movement remain an acceptance
-trial pending a key with GPT-Live access. Do not infer provider success from the
-offline tests or from `configured: true` alone.
+Browser inspection verified the original desktop/mobile layout, live setup
+controls, production origin handling and missing-key feedback. The 45 automated
+tests, TypeScript, ESLint and production build passed before the integration
+merged in PR #12; the runtime agent cleared its independent contract review.
+
+On September 13, 2026, Elias completed a real GPT-Live browser trial after the
+dedicated runtime on 7110 was restarted to load his newly added key. Existing
+text sessions on 7100 were preserved. Speech input, spoken replies and live
+transcripts worked, and Elias explicitly accepted the live interaction.
+Head movement, a wave and further composed motions produced five saved
+`move_avatar` receipts with `status: completed`. Stop movement cancelled a
+delegation while the voice call stayed active; an already submitted motion
+receipt remained recorded. The microphone mute control was also exercised.
+
+The call ended through the frontend with `status: closed`,
+`reason: close_requested`, `finalized: true`, 284 seconds of recorded provider
+usage and zero remaining active calls. The browser returned to ordinary chat.
+Animation naturalness and action latency remain improvement areas; Elias
+deferred animation work to the next session. This trial does not change the
+documented body, transcript or lip-sync limits.
