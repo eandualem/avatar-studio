@@ -82,6 +82,14 @@ export const avatarMachine = setup({
           controller: context.controller,
           driver: context.driver!,
         }),
+        onError: {
+          target: "failed",
+          actions: [
+            ({ context }) => context.controller.detach(),
+            assign({ error: () => "Charlie could not start. Please try again." }),
+          ],
+          description: "Release a failed renderer and expose the retry action.",
+        },
       },
     },
     failed: {

@@ -72,7 +72,14 @@ export const speechMachine = setup({
     },
     listening: {
       description: "Listen for one dictated utterance.",
-      invoke: { src: "listen" },
+      invoke: {
+        src: "listen",
+        onError: {
+          target: "idle",
+          actions: assign({ error: () => "The microphone could not start." }),
+          description: "Recover from an unexpected browser microphone failure.",
+        },
+      },
       on: {
         RESULT: {
           actions: assign({ transcript: ({ event }) => event.text }),
