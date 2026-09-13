@@ -53,6 +53,7 @@ let mic: ReturnType<typeof track>,
   },
   getUserMedia: ReturnType<typeof vi.fn>;
 let peers: FakePeer[];
+let speakers: FakeAudio[], audioLevel: number;
 class FakeChannel extends EventTarget {
   onmessage: ((event: MessageEvent) => void) | null = null;
   emit(data: unknown) {
@@ -90,6 +91,9 @@ class FakePeer extends EventTarget {
   }
 }
 class FakeAudio {
+  constructor() {
+    speakers.push(this);
+  }
   autoplay = false;
   muted = false;
   paused = true;
@@ -104,6 +108,11 @@ class FakeAudio {
 class FakeAudioContext {
   resume = vi.fn(async () => {});
   close = vi.fn(async () => {});
+  createMediaStreamSource = vi.fn(() => ({ connect: vi.fn() }));
+  createAnalyser = vi.fn(() => ({
+    fftSize: 256,
+    getByteTimeDomainData: (data: Uint8Array) => data.fill(audioLevel),
+  }));
 }
 function controller(): MotionController {
   return {
@@ -119,6 +128,8 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 beforeEach(() => {
   vi.clearAllMocks();
   peers = [];
+  speakers = [];
+  audioLevel = 128;
   mic = track();
   media = { getTracks: () => [mic], getAudioTracks: () => [mic] };
   getUserMedia = vi.fn(async () => media);
@@ -137,11 +148,47 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe("live audio lifecycle and delegated motion", () => {
+  it("recovers blocked playback and bases speaking on audible media rather than server status", async () => {
+    let frame!: FrameRequestCallback;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        frame = callback;
+        return 1;
+      }),
+    );
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const client = new VoiceClient("session", controller());
+    await client.start();
+    client.receive(event("status", { status: "active" }));
+    expect(client.snapshot().speaking).toBe(false);
+    speakers[0].play.mockRejectedValueOnce(
+      new DOMException("Playback blocked", "NotAllowedError"),
+    );
+    peers[0].ontrack?.({ streams: [media] } as unknown as RTCTrackEvent);
+    await flush();
+    expect(client.snapshot().soundBlocked).toBe(true);
+    client.playSound();
+    await flush();
+    expect(client.snapshot().soundBlocked).toBe(false);
+    frame(1000);
+    expect(client.snapshot().speaking).toBe(false);
+    audioLevel = 155;
+    now.mockReturnValue(5000);
+    frame(5000);
+    expect(client.snapshot()).toEqual(
+      expect.objectContaining({ speaking: true, elapsed: 4 }),
+    );
+    await client.end();
+    expect(speakers[0].pause).toHaveBeenCalledOnce();
+    expect(speakers[0].srcObject).toBeNull();
+  });
   it("checks configuration before requesting microphone access", async () => {
     vi.mocked(voiceRequest).mockResolvedValueOnce({
       enabled: true,
