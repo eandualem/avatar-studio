@@ -1,0 +1,12 @@
+name = "avatar_studio"
+
+[[artifacts]]
+name = "instructions"
+role = "identity, conversation style, and live body control"
+required = true
+default_file = "instructions.md"
+
+[artifacts.policy]
+assistant_edit = "none"
+assistant_activate = false
+host_edit = true
