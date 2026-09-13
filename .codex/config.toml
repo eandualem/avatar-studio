@@ -1,0 +1,6 @@
+[mcp_servers.blender]
+command = "uvx"
+args = ["blender-mcp"]
+startup_timeout_sec = 60
+tool_timeout_sec = 300
+enabled_tools = ["get_scene_info", "get_object_info", "get_viewport_screenshot", "execute_blender_code"]

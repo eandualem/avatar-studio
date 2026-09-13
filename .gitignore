@@ -1,0 +1,9 @@
+.tmp/
+*.blend1
+*.blend@
+.DS_Store
+node_modules/
+.next/
+.env
+.env.*
+!.env.example

@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""bl — drive Blender from any shell, through the blender-mcp addon socket.
+
+Runtime-neutral: no MCP client required. It speaks the same JSON protocol the
+"MCP for Blender" addon serves on localhost:9876, so Codex, Claude Code, Gemini,
+OpenCode or a human at a terminal all use the same commands.
+
+  bl ping                          is Blender listening?
+  bl scene                         bounded scene summary
+  bl object NAME                   one object's details
+  bl run FILE [FILE ...]           execute Python files inside Blender; stdout comes back
+  bl exec 'code'                   execute inline Python
+  bl shot PATH [--size N]          viewport screenshot (default 512 px, PNG)
+  bl render PATH [--size N] [--engine EEVEE|CYCLES] [--samples S]
+                                   camera render written to PATH
+
+Every `run` gets a preamble that puts this repo's blender/ directory on
+sys.path, so files there can `import robot` and reload it. Output is truncated
+to --max chars (default 4000) unless --full is given: keep prints short.
+
+Env: BLENDER_HOST (localhost), BLENDER_PORT (9876), BL_TIMEOUT seconds (600).
+"""
+import argparse
+import json
+import os
+import socket
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HOST = os.environ.get("BLENDER_HOST", "localhost")
+PORT = int(os.environ.get("BLENDER_PORT", "9876"))
+TIMEOUT = float(os.environ.get("BL_TIMEOUT", "600"))
+
+PREAMBLE = (
+    "import sys, importlib\n"
+    f"_p = {ROOT + '/blender'!r}\n"
+    "sys.path.insert(0, _p) if _p not in sys.path else None\n"
+)
+
+
+def send(cmd_type, params=None):
+    msg = json.dumps({"type": cmd_type, "params": params or {}}).encode()
+    with socket.create_connection((HOST, PORT), timeout=TIMEOUT) as s:
+        s.sendall(msg)
+        buf = b""
+        while True:
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+            try:
+                return json.loads(buf.decode())
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+    raise RuntimeError("connection closed without a complete reply")
+
+
+def fail(msg, code=1):
+    print(f"bl: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def unwrap(resp):
+    if resp.get("status") != "success":
+        fail(resp.get("message", json.dumps(resp)))
+    result = resp.get("result", {})
+    if isinstance(result, dict) and "error" in result:
+        fail(result["error"])
+    return result
+
+
+def emit(text, args):
+    if not args.full and len(text) > args.max:
+        text = text[: args.max] + f"\n… [truncated at {args.max} chars; --full for all]"
+    print(text, end="" if text.endswith("\n") else "\n")
+
+
+def run_code(code, args):
+    result = unwrap(send("execute_code", {"code": PREAMBLE + code}))
+    emit(result.get("result", "") or "(no output)\n", args)
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="bl", add_help=True)
+    ap.add_argument("--max", type=int, default=4000)
+    ap.add_argument("--full", action="store_true")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("ping")
+    sub.add_parser("scene")
+    p = sub.add_parser("object"); p.add_argument("name")
+    p = sub.add_parser("run"); p.add_argument("files", nargs="+")
+    p = sub.add_parser("exec"); p.add_argument("code")
+    p = sub.add_parser("shot"); p.add_argument("path"); p.add_argument("--size", type=int, default=512)
+    p = sub.add_parser("render"); p.add_argument("path"); p.add_argument("--size", type=int, default=1024)
+    p.add_argument("--engine", default="EEVEE", choices=["EEVEE", "CYCLES"]); p.add_argument("--samples", type=int, default=0)
+    args = ap.parse_args()
+
+    try:
+        if args.cmd == "ping":
+            print(json.dumps(unwrap(send("ping"))))
+        elif args.cmd == "scene":
+            emit(json.dumps(unwrap(send("get_scene_info")), indent=1), args)
+        elif args.cmd == "object":
+            emit(json.dumps(unwrap(send("get_object_info", {"name": args.name})), indent=1), args)
+        elif args.cmd == "run":
+            code = ""
+            for f in args.files:
+                with open(f) as fh:
+                    code += f"# ---- {f}\n" + fh.read() + "\n"
+            run_code(code, args)
+        elif args.cmd == "exec":
+            run_code(args.code, args)
+        elif args.cmd == "shot":
+            path = os.path.abspath(args.path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            r = unwrap(send("get_viewport_screenshot", {"filepath": path, "max_size": args.size, "format": "png"}))
+            print(f"{path} ({r.get('method', 'ok')})")
+        elif args.cmd == "render":
+            path = os.path.abspath(args.path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            engine = "BLENDER_EEVEE_NEXT" if args.engine == "EEVEE" else "CYCLES"
+            code = (
+                "import bpy\n"
+                "sc = bpy.context.scene\n"
+                f"sc.render.engine = {engine!r}\n"
+                f"sc.render.resolution_x = {args.size}\n"
+                f"sc.render.resolution_y = {args.size}\n"
+                "sc.render.resolution_percentage = 100\n"
+                f"sc.render.filepath = {path!r}\n"
+                "sc.render.image_settings.file_format = 'PNG'\n"
+                + (f"sc.cycles.samples = {args.samples}\n" if args.samples and engine == "CYCLES" else "")
+                + (f"sc.eevee.taa_render_samples = {args.samples}\n" if args.samples and engine != "CYCLES" else "")
+                + "bpy.ops.render.render(write_still=True)\n"
+                "print('rendered', sc.render.filepath)\n"
+            )
+            run_code(code, args)
+    except ConnectionRefusedError:
+        fail(f"nothing listening on {HOST}:{PORT}; start Blender with scripts/blender-up.sh", 2)
+    except socket.timeout:
+        fail(f"timed out after {TIMEOUT:.0f}s (BL_TIMEOUT)", 3)
+
+
+if __name__ == "__main__":
+    main()
