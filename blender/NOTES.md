@@ -52,3 +52,9 @@ avoidance or whole-body balancing has been implemented. Extreme targets can
 produce shell overlap or joint gaps, and finger pivots need a close-up pass
 before gripping objects. Natural walking and speech-synchronized gestures
 remain future work. The approved app design stays the same.
+
+After Elias's movement review, lowered the elbow preference and limited wrist
+swing relative to the forearm. The first lift requested about 96° of wrist
+swing at its midpoint; the revised one stays within 35°. This improves the
+specific raise while remaining a simple procedural demonstration, not a full
+human joint or motion-planning model.

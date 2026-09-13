@@ -54,6 +54,18 @@ def validate():
         apply(left_curl=(0, .2, .4, .6, .8))
         curls = [bone(rig,'LeftHand'+digit+'1').rotation_quaternion.angle for digit in ('Thumb','Index','Middle','Ring','Pinky')]
         assert all(a < b for a,b in zip(curls,curls[1:])), 'Finger controls must be independent'
+        max_wrist_swing = 0
+        max_elbow_rise = -math.inf
+        for frame in range(181):
+            demo(frame/30)
+            for side in ('Left', 'Right'):
+                shoulder, elbow, wrist = [rig.matrix_world @ bone(rig,side+n).head for n in ('Arm','ForeArm','Hand')]
+                hand_direction = (rig.matrix_world @ bone(rig,side+'Hand').matrix).to_3x3() @ Vector((0,1,0))
+                swing = math.degrees((wrist-elbow).angle(hand_direction))
+                max_wrist_swing = max(max_wrist_swing, swing)
+                max_elbow_rise = max(max_elbow_rise, elbow.z-shoulder.z)
+        assert max_wrist_swing <= 35.001, 'Excessive wrist swing during demo'
+        assert max_elbow_rise < 0, 'Demo elbow rises above shoulder'
         demo(0)
         start = [b.matrix.copy() for b in rig.pose.bones]
         demo(3)
@@ -62,6 +74,8 @@ def validate():
         assert bpy.data.collections['Collection'].hide_viewport
         report = {'bones':65,'rigid_parts':134,'baked_actions':0,'cases':results,
                   'independent_finger_curls':True,'history_independent_demo':True,
+                  'demo_max_wrist_swing_degrees':max_wrist_swing,
+                  'demo_max_elbow_above_shoulder':max_elbow_rise,
                   'limits':'Upper-body procedural proof. No collision avoidance, balance, locomotion, speech timing, or browser integration validated.'}
         (SOURCE/'validation.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report, indent=2))

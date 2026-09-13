@@ -69,8 +69,26 @@ def basis(direction, normal):
 
 
 def hand_pose(rig, side, direction, normal, curls):
-    """Aim the palm and independently curl thumb/index/middle/ring/pinky."""
+    """Aim the palm within a conservative swing cone, then curl each digit.
+
+    The 35-degree cone is a robot presentation limit, not a human joint model.
+    It keeps independently requested hand directions from sharply folding the
+    wrist during a reach. Forearm roll and full anatomical limits remain future
+    controller work.
+    """
     hand = bone(rig, side+'Hand')
+    forearm = bone(rig, side+'ForeArm')
+    forward = (rig.matrix_world.to_3x3() @ (hand.head-forearm.head)).normalized()
+    requested = Vector(direction)
+    if requested.length < 1e-8:
+        raise ValueError('Hand direction must be nonzero')
+    requested.normalize()
+    angle = forward.angle(requested)
+    max_swing = math.radians(35)
+    if angle > max_swing:
+        delta = forward.rotation_difference(requested)
+        requested = Quaternion().slerp(delta, max_swing/angle) @ forward
+    direction = requested
     rest = rig.matrix_world @ hand.bone.matrix_local
     rest_direction = rest.to_3x3() @ Vector((0, 1, 0))
     rotation = basis(direction, normal) @ basis(rest_direction, (0, 0, 1)).inverted()
@@ -97,7 +115,9 @@ def apply(left=(1.1, -.12, 2.53), right=(-1.1, -.12, 2.53),
     for side, target, direction, curls, sign in (
             ('Left', left, left_direction, left_curl, 1),
             ('Right', right, right_direction, right_curl, -1)):
-        reach(rig, side, target, (sign*2.5, -.15, 3.5))
+        # Prefer an elbow below the shoulder during the lift. A high outward
+        # pole made the elbow rise before the wrist and looked like a flap.
+        reach(rig, side, target, (sign*1.8, -.35, 2.3))
         hand_pose(rig, side, direction, (0, 1, 0), curls)
     head = bone(rig, 'Head')
     rest = head.bone.matrix_local.to_quaternion()

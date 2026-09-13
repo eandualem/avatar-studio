@@ -38,6 +38,23 @@ LLM-facing motion layer. Much of its default interface selects named motions,
 so adopting its catalog alone would not meet the request for arbitrary hand
 targets. Evaluate its composition ideas alongside a small custom solver.
 
+Elias clarified that the important freedom is to compose new movements, not
+just choose named gestures. A generated `wave()` can still be procedural while
+offering only a fixed vocabulary. The desired tool should accept body-relative
+targets or waypoints, palm orientation, finger values, duration, and concurrent
+head/body goals. The current demo authors those goals in Python; there is no
+LLM motion planner, trajectory queue, or generic leg controller yet.
+
+The motion controller should distinguish hard feasibility limits (joint ranges,
+twist, reach, self-collision, and support contacts) from preferences (comfortable
+posture, elbow placement, minimal change from the current pose, and smooth
+speed/acceleration). Joint-valid endpoints alone do not guarantee a natural or
+collision-free path. If a goal is infeasible, relax a permitted goal or report
+the achievable result to the assistant; do not force the joints through it.
+Keep a current pose and velocity when a request is interrupted. The Blender
+demo's lower elbow preference and 35° wrist swing cone address one visible
+artifact, not this complete constraint system.
+
 Start with reachable upper-body gestures and interruption. Then tune elbow
 poles, hand pivots, joint limits, shell collision handling, and motion timing
 against live interaction. Walking needs foot placement, balance, and body

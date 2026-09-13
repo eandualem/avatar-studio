@@ -71,6 +71,13 @@ bones. Finger values independently control thumb/index/middle/ring/pinky from
 these controls with smooth target interpolation and a small lateral oscillation.
 Its choreography is an authored example; the solver accepts other targets.
 
+The elbow preference is below and slightly outside the shoulder. Palm aiming
+limits hand swing to 35° relative to the forearm, avoiding the sharp wrist fold
+in the first demo. This is a conservative robot presentation setting, not an
+anatomical human wrist model; wrist roll and coupled shoulder limits still need
+to be handled by a more complete controller. The full 181-frame demo is checked
+for the swing limit and for elbows remaining below shoulder height.
+
 `validation.json` records five target cases, including an unreachable target,
 independent finger curls, deterministic resetting, and preserved panel sizes.
 Binding was rerun with stable counts: 134 visible parts, 249 mesh datablocks,
