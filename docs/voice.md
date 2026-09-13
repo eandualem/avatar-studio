@@ -94,7 +94,12 @@ The browser refreshes host context with the actual pose before returning the
 receipt to the voice delegation endpoint. Invalid tools return a failed receipt.
 Superseded/cancelled work cannot submit a late result.
 
-SSE reconnects use the last processed integer cursor in `?after=`. Replay gaps
+SSE reconnects use the last processed integer cursor in `?after=`. The client
+rejects stale REST snapshots and older action/transcript events after a newer
+snapshot, while retaining backend text absent from snapshots. Cancellation
+reconciles the current pending action after the runtime finishes draining, so
+newly delegated work is neither dropped nor confused with the cancelled action.
+Replay gaps
 replace speech fragments and reconcile only the current pending action from a
 snapshot. A lost tool-result acknowledgement triggers snapshot reconciliation;
 physical movement and result submission are never retried blindly. Repeated
@@ -108,7 +113,9 @@ provider closure. Runtime duration limits and usage inspection bound that case.
 
 ## Transcript and visual limits
 
-Spoken fragments and full backend answers are labelled separately. Fragments can
+Spoken fragments and full backend answers are labelled separately. Backend text
+deltas accumulate under the assistant message identity across host-tool
+continuations; empty/null final events retain the streamed text. Fragments can
 overlap, are not authoritative complete turns and do not prove playback. Full
 backend answers are displayed after the speech fragments for the current call.
 The app stores up to 400 visible messages and 100 call IDs per conversation.

@@ -143,6 +143,8 @@ beforeEach(() => {
   vi.mocked(voiceRequest).mockImplementation(async (path) => {
     if (path === "status") return { enabled: true, configured: true };
     if (path === "calls") return offer;
+    if (path === `calls/${callId}`)
+      return { cursor: 0, status: "active", transcript: [], delegations: {} };
     if (path.endsWith("/close")) return { status: "closed", finalized: true };
     return { accepted: true };
   });
@@ -348,6 +350,7 @@ describe("live audio lifecycle and delegated motion", () => {
       if (path.endsWith("tool-result")) throw new Error("connection lost");
       if (path === `calls/${callId}`)
         return {
+          cursor: 1,
           status: "active",
           transcript: [],
           active_delegation: "d1",
@@ -516,4 +519,241 @@ describe("live audio lifecycle and delegated motion", () => {
     expect(actor.getSnapshot().context.current.voiceCalls).toEqual([callId]);
     actor.stop();
   });
+});
+
+it("contract review: retains normal streamed backend text with a null final content", async () => {
+  const client = new VoiceClient("session", controller());
+  await client.start();
+  try {
+    client.receive(
+      event("backend", {
+        delegation_id: "d1",
+        event: { type: "text_delta", content: "Complete answer" },
+      }),
+    );
+    client.receive(
+      event("backend", {
+        delegation_id: "d1",
+        event: {
+          type: "final_response",
+          content: null,
+          streamed: true,
+          message_id: "reply-1",
+        },
+      }),
+    );
+    expect(
+      client
+        .snapshot()
+        .messages.some(
+          (m) => m.source === "backend" && m.content === "Complete answer",
+        ),
+    ).toBe(true);
+  } finally {
+    await client.end();
+  }
+});
+
+it("contract review: reconciles a new pending action that arrives before cancel HTTP completes", async () => {
+  const body = controller(),
+    client = new VoiceClient("session", body);
+  await client.start();
+  let finish!: (value: unknown) => void;
+  vi.mocked(voiceRequest).mockImplementation(async (path) => {
+    if (path.endsWith("/cancel"))
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    if (path === `calls/${callId}`)
+      return {
+        status: "active",
+        cursor: 30,
+        transcript: [],
+        active_delegation: "d2",
+        delegations: { d2: { status: "pending_host" } },
+        pending_tool_call: pending,
+      };
+    return { finalized: true, accepted: true };
+  });
+  try {
+    const cancelled = client.cancelWork();
+    client.receive(event("delegation", { id: "d2", status: "running" }));
+    client.receive(
+      event("delegation", {
+        id: "d2",
+        status: "pending_host",
+        pending_tool_call: pending,
+      }),
+    );
+    expect(body.execute).not.toHaveBeenCalled();
+    finish({ cancelled: true });
+    await cancelled;
+    await flush();
+    expect(body.execute).toHaveBeenCalledOnce();
+  } finally {
+    await client.end();
+  }
+});
+
+it("contract review: ignores REST snapshot older than already processed SSE state", async () => {
+  const body = controller(),
+    client = new VoiceClient("session", body);
+  await client.start();
+  let snapshot!: (value: unknown) => void;
+  vi.mocked(voiceRequest).mockImplementation(async (path) => {
+    if (path.endsWith("/delegations/d1/tool-result"))
+      throw new Error("lost acknowledgment");
+    if (path === `calls/${callId}`)
+      return new Promise((resolve) => {
+        snapshot = resolve;
+      });
+    return { finalized: true, accepted: true };
+  });
+  vi.mocked(body.execute)
+    .mockResolvedValueOnce(completed)
+    .mockImplementationOnce(
+      (_motion, signal) =>
+        new Promise((resolve) =>
+          signal?.addEventListener("abort", () =>
+            resolve({ ...completed, status: "interrupted" }),
+          ),
+        ),
+    );
+  const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
+  try {
+    receive(
+      10,
+      event("delegation", {
+        id: "d1",
+        status: "pending_host",
+        pending_tool_call: pending,
+      }),
+    );
+    await flush();
+    receive(
+      20,
+      event("delegation", {
+        id: "d2",
+        status: "pending_host",
+        pending_tool_call: { ...pending, call_id: "hand-2" },
+      }),
+    );
+    expect(body.execute).toHaveBeenCalledTimes(2);
+    snapshot({
+      status: "active",
+      cursor: 11,
+      transcript: [],
+      active_delegation: "d1",
+      delegations: { d1: { status: "pending_host" } },
+      pending_tool_call: pending,
+    });
+    await flush();
+    expect(vi.mocked(body.execute).mock.calls[1][1]?.aborted).toBe(false);
+  } finally {
+    await client.end();
+  }
+});
+
+it("retains backend text from replay without rolling action state behind a newer snapshot", async () => {
+  const body = controller(),
+    client = new VoiceClient("session", body);
+  await client.start();
+  vi.mocked(body.execute).mockImplementation(
+    (_motion, signal) =>
+      new Promise((resolve) =>
+        signal?.addEventListener("abort", () =>
+          resolve({ ...completed, status: "interrupted" }),
+        ),
+      ),
+  );
+  const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
+  receive(
+    5,
+    event("backend", {
+      delegation_id: "d1",
+      event: { type: "text_delta", content: "Complete" },
+    }),
+  );
+  client.receive(
+    event("snapshot", {
+      cursor: 20,
+      status: "active",
+      transcript: [],
+      active_delegation: "d2",
+      delegations: { d2: { status: "pending_host" } },
+      pending_tool_call: { ...pending, call_id: "hand-2" },
+    }),
+  );
+  receive(
+    10,
+    event("delegation", {
+      id: "d1",
+      status: "pending_host",
+      pending_tool_call: pending,
+    }),
+  );
+  receive(
+    12,
+    event("backend", {
+      delegation_id: "d1",
+      event: { type: "text_delta", content: " answer" },
+    }),
+  );
+  receive(
+    12,
+    event("backend", {
+      delegation_id: "d1",
+      event: { type: "text_delta", content: " answer" },
+    }),
+  );
+  receive(
+    13,
+    event("backend", {
+      delegation_id: "d1",
+      event: {
+        type: "final_response",
+        content: null,
+        streamed: true,
+        message_id: "reply-1",
+      },
+    }),
+  );
+  expect(body.execute).toHaveBeenCalledOnce();
+  expect(vi.mocked(body.execute).mock.calls[0][1]?.aborted).toBe(false);
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Complete answer",
+  ]);
+  await client.end();
+});
+
+it("retains one assistant message across streamed host continuations", async () => {
+  const client = new VoiceClient("session", controller());
+  await client.start();
+  const backend = (inner: Record<string, unknown>) =>
+    client.receive(event("backend", { delegation_id: "d1", event: inner }));
+  backend({ type: "text_delta", content: "Raising" });
+  backend({ type: "text_delta", content: " my hand." });
+  backend({
+    type: "final_response",
+    content: null,
+    streamed: true,
+    message_id: "reply-1",
+    pending_tool_call: pending,
+  });
+  backend({ type: "text_delta", content: "Done." });
+  backend({
+    type: "final_response",
+    content: "",
+    streamed: true,
+    message_id: "reply-1",
+  });
+  expect(client.snapshot().messages).toEqual([
+    {
+      id: `backend:${callId}:d1:reply-1`,
+      role: "assistant",
+      source: "backend",
+      content: "Raising my hand.\n\nDone.",
+    },
+  ]);
+  await client.end();
 });

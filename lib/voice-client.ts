@@ -12,6 +12,7 @@ import {
 import { executeTool, hostContext } from "./host-tools";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { spokenMessages } from "./voice-transcript";
+import { VoiceReplies } from "./voice-replies";
 
 const abortError = () =>
   new DOMException("Live connection cancelled", "AbortError");
@@ -38,7 +39,9 @@ export class VoiceClient {
   private actions = new Map<string, Action>();
   private activeDelegation = "";
   private fragments: VoiceFragment[] = [];
-  private answers = new Map<string, Message>();
+  private answers = new VoiceReplies(() => this.callId);
+  private eventCursor = 0;
+  private stateCursor = 0;
   private animation = 0;
   private lastSound = 0;
   private started = 0;
@@ -65,7 +68,7 @@ export class VoiceClient {
     this.update({
       messages: [
         ...spokenMessages(this.callId, this.fragments),
-        ...this.answers.values(),
+        ...this.answers.messages(),
       ].slice(-400),
     });
   }
@@ -180,7 +183,7 @@ export class VoiceClient {
     this.check();
     this.stopEvents = observeVoiceEvents(
       `calls/${this.callId}/events`,
-      (_id, data) => this.receive(data),
+      (id, data) => this.receive(data, id),
       () =>
         this.failure(
           "The live event connection could not recover. Ending the call to avoid leaving it running.",
@@ -274,29 +277,28 @@ export class VoiceClient {
     });
     this.update({ micMuted: muted });
   };
-  receive(raw: unknown) {
+  receive(raw: unknown, cursor?: number) {
     const envelope = voiceEventSchema.parse(raw);
     if (envelope.call_id !== this.callId) return;
     const { event, data } = envelope;
+    if (cursor !== undefined) {
+      if (cursor <= this.eventCursor) return;
+      this.eventCursor = cursor;
+      // Snapshots include speech/action state, but not backend reply text.
+      if (cursor <= this.stateCursor && event !== "backend") return;
+      this.stateCursor = Math.max(this.stateCursor, cursor);
+    }
+    if (event === "snapshot" && typeof data.cursor === "number") {
+      if (data.cursor < this.stateCursor) return;
+      this.stateCursor = data.cursor;
+    }
     if (event === "transcript") {
       this.fragments.push(fragmentSchema.parse(data));
       this.transcript();
     } else if (event === "backend") {
       const inner = data.event as Record<string, unknown>;
-      if (
-        inner.type === "final_response" &&
-        typeof inner.content === "string" &&
-        inner.content
-      ) {
-        const id = `backend:${data.delegation_id}:${inner.message_id || "reply"}`;
-        this.answers.set(id, {
-          id,
-          role: "assistant",
-          content: inner.content,
-          source: "backend",
-        });
+      if (this.answers.accept(String(data.delegation_id), inner))
         this.transcript();
-      }
       if (inner.type === "error")
         this.update({
           warning:
@@ -351,7 +353,9 @@ export class VoiceClient {
       this.update({
         work:
           state && ["running", "waiting", "pending_host"].includes(state.status)
-            ? "Thinking with you"
+            ? state.status === "pending_host"
+              ? "Moving with your idea"
+              : "Thinking with you"
             : "",
       });
       // Only reconcile the snapshot's current pending action, never historical entries.
@@ -454,16 +458,23 @@ export class VoiceClient {
             : "The movement finished locally, but its result could not be confirmed. It will not be repeated automatically.",
       });
       try {
-        this.receive({
-          type: "voice",
-          call_id: this.callId,
-          event: "snapshot",
-          data: await voiceRequest(`calls/${this.callId}`),
-        });
+        await this.reconcile();
       } catch {
         this.failure("Could not reconcile the live session after a movement.");
       }
     }
+  }
+  private async reconcile() {
+    const data = await voiceRequest(`calls/${this.callId}`);
+    if (!Number.isSafeInteger(data.cursor) || data.cursor < 0)
+      throw new Error("The runtime returned an invalid voice snapshot.");
+    if (!this.ending)
+      this.receive({
+        type: "voice",
+        call_id: this.callId,
+        event: "snapshot",
+        data,
+      });
   }
   async cancelWork() {
     this.cancelling = true;
@@ -475,6 +486,7 @@ export class VoiceClient {
     } finally {
       this.cancelling = false;
     }
+    if (this.callId && !this.ending) await this.reconcile();
   }
   private leave = () => {
     this.ending = true;

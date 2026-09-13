@@ -7,8 +7,8 @@ iteration deliberately precedes TalkingHead and facial blend shapes.
 ## Conversation and body control
 
 The Next.js server forwards HTTP chat/cancel and streaming voice contracts
-to assistant-runtime. Provider keys stay in the runtime. Written
-responses appear after each model turn; token streaming is not implemented yet.
+to assistant-runtime. Provider keys stay in the runtime. Text-chat replies
+appear after each model turn; backend replies during live voice stream as text.
 
 Each request supplies `host_context`: the actual pose, useful landmarks,
 the coordinate system, and JSON schemas for `move_avatar` and `get_pose`. The

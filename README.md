@@ -60,8 +60,9 @@ credentials stay in the runtime. No microphone starts automatically.
 - GPT-Live audio, transcripts, delegated body actions and explicit call controls.
 
 Complete anatomical modelling, dynamic walking/balance, detailed mesh collision,
-facial shapes and lip-sync remain future work. Written backend responses arrive
-per model turn; live speech transcripts arrive as fragments. See [architecture and limits](docs/architecture.md)
+facial shapes and lip-sync remain future work. Text-chat replies arrive per model
+turn; live speech fragments and delegated backend text stream during calls.
+See [architecture and limits](docs/architecture.md)
 and [solver selection](docs/motion-solvers.md).
 
 ## Checks and asset rebuild
