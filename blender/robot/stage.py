@@ -51,6 +51,7 @@ def setup(c, m):
     for child in scene.collection.children:
         if child.name not in ('Robot', 'Studio'):
             child.hide_render = True
+            child.hide_viewport = True
     floor = g.mesh('Studio.Cream floor', [(-200, -200, .018), (200, -200, .018), (200, 200, .018), (-200, 200, .018)], [(0, 1, 2, 3)], col, m['ground'])
     floor.visible_glossy = False
     world = bpy.data.worlds.get('Studio.World') or bpy.data.worlds.new('Studio.World')
