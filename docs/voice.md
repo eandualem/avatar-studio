@@ -1,7 +1,8 @@
 # GPT-Live voice
 
 Current Live uses [independent body control](parallel-body-control.md) and
-[the 7114 activation contract](parallel-body-verification.md). The delegated
+[the activation contract](parallel-body-verification.md) and
+[Live setup recovery](live-setup-recovery.md). The delegated
 workflow below describes earlier releases and is retained as historical setup
 context; it is not the active movement path.
 
