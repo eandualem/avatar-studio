@@ -177,7 +177,6 @@ function Workspace() {
         aria-label="Charlie, your interactive robot"
       >
         <div className="stage-top">
-          <span className="eyebrow">A LITTLE MORE HUMAN</span>
           <span
             className={`status ${busy || listening ? "active" : ""}`}
             role="status"
@@ -196,19 +195,6 @@ function Workspace() {
             <button onClick={retryAvatar}>Try again</button>
           </div>
         )}
-        <div className="stage-caption">
-          <h1>
-            A face to talk to.
-            <br />A space to think.
-          </h1>
-          <p>
-            Here for the small questions.
-            <br className="mobile-break" /> And the big possibilities.
-          </p>
-        </div>
-        <span className="stage-signature">
-          <span /> PRESENT, WITH YOU
-        </span>
       </section>
       <section
         className="conversation-panel"
