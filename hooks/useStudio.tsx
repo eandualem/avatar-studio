@@ -1,6 +1,6 @@
 "use client";
 import { createActorContext, useSelector } from "@xstate/react";
-import { useCallback, useEffect, useEffectEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { appMachine } from "@/machines/appMachine";
 import { VoicePhase } from "@/types/voice";
 import type { ActorRefFrom } from "xstate";
@@ -43,6 +43,7 @@ export function useConversation() {
   };
 }
 export function useVoice() {
+  const [copyStatus, setCopyStatus] = useState("");
   const conversation = StudioProvider.useSelector(
     (s) => s.context.conversation,
   );
@@ -63,9 +64,13 @@ export function useVoice() {
       })[s?.value || "ended"],
   );
   const view = useSelector(actor, (s) => s?.context.view);
+  const savedTrace = useSelector(
+    conversation,
+    (s) => s.context.current.motionTrace,
+  );
   return {
     state: phase,
-    data: { view },
+    data: { view, savedTrace, copyStatus },
     actions: {
       start: () => {
         speech.send({ type: "STOP" });
@@ -75,6 +80,24 @@ export function useVoice() {
       mute: () => actor?.send({ type: "MUTE" }),
       play: () => actor?.send({ type: "PLAY" }),
       stopWork: () => actor?.send({ type: "CANCEL_WORK" }),
+      resetPose: () => actor?.send({ type: "RESET_POSE" }),
+      copyMotion: async () => {
+        const trace = view
+          ? {
+              callId: view.callId,
+              body: view.body,
+              facts: view.facts,
+              speechStarts: view.speechStarts,
+            }
+          : savedTrace;
+        if (!trace) return;
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(trace, null, 2));
+          setCopyStatus("Copied movement details");
+        } catch {
+          setCopyStatus("Could not copy movement details");
+        }
+      },
     },
   };
 }

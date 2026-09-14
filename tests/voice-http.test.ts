@@ -143,7 +143,7 @@ describe("voice transport boundaries", () => {
     expect(sources).toHaveLength(2);
     expect(failed).not.toHaveBeenCalled();
   });
-  it("returns typed continuations to the voice runtime with bounded visible context", async () => {
+  it("routes typed continuations after a Live call to text runtime with visible context", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({ content: "Done" }),
     );
@@ -166,7 +166,7 @@ describe("voice transport boundaries", () => {
       ],
     };
     await sendTurn(conversation, controller, new AbortController().signal);
-    expect(fetch.mock.calls[0][0]).toBe("/api/runtime/voice-chat");
+    expect(fetch.mock.calls[0][0]).toBe("/api/runtime/chat");
     const body = JSON.parse(
       (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
         .body as string,
@@ -174,7 +174,7 @@ describe("voice transport boundaries", () => {
     expect(body.host_context.view.data.recent_visible_messages).toEqual([
       { role: "user", content: "Wave again" },
     ]);
-    await cancelTurn(conversation.id, conversation.mode);
-    expect(fetch.mock.calls[1][0]).toBe("/api/runtime/voice-cancel");
+    await cancelTurn(conversation.id);
+    expect(fetch.mock.calls[1][0]).toBe("/api/runtime/cancel");
   });
 });

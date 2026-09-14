@@ -1,7 +1,6 @@
 import type { MotionController } from "@/types/avatar";
-import type { Message, Pending } from "@/types/conversation";
+import type { Message } from "@/types/conversation";
 import {
-  delegationSchema,
   fragmentSchema,
   initialVoiceView,
   voiceEventSchema,
@@ -9,20 +8,18 @@ import {
   type VoiceFragment,
   type VoiceView,
 } from "@/types/voice";
-import { executeTool, hostContext } from "./host-tools";
-import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
+import { BodyController } from "./body-controller";
+import { bodyTransport } from "./body-runtime";
+import { LiveBodyFacts } from "./live-body-facts";
+import { bodyMessages } from "./body-transcript";
+import { conversationWindow } from "./conversation-window";
+import { observeVoiceEvents, voiceRequest } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
-import { VoiceReplies } from "./voice-replies";
+import { installLivePolicy } from "./live-policy";
 
 const abortError = () =>
   new DOMException("Live connection cancelled", "AbortError");
-type Action = {
-  delegation: string;
-  abort: AbortController;
-  submitted: boolean;
-};
-
 export class VoiceClient {
   private view = initialVoiceView();
   private listeners = new Set<(view: VoiceView) => void>();
@@ -35,13 +32,12 @@ export class VoiceClient {
   private allocation?: Promise<ReturnType<typeof voiceOfferSchema.parse>>;
   private closing?: Promise<void>;
   private ending = false;
+  private policyReady = false;
+  private policyAbort = new AbortController();
   private disposed = false;
-  private cancelling = false;
-  private actions = new Map<string, Action>();
-  private activeDelegation = "";
-  private pendingAction?: { delegation: string; tool: Pending };
+  private body: BodyController;
+  private facts?: LiveBodyFacts;
   private fragments: VoiceFragment[] = [];
-  private answers = new VoiceReplies(() => this.callId);
   private eventCursor = 0;
   private stateCursor = 0;
   private animation = 0;
@@ -52,7 +48,27 @@ export class VoiceClient {
     private sessionId: string,
     private controller: MotionController,
     private history: Message[] = [],
-  ) {}
+    initialStill = false,
+  ) {
+    this.body = new BodyController(
+      controller,
+      bodyTransport,
+      (body) => {
+        this.update({
+          body,
+          work: body.active
+            ? "Moving"
+            : body.actions.at(-1)?.status === "requested"
+              ? "Preparing movement"
+              : "",
+        });
+      },
+      (action) => this.facts?.send(action),
+      (warning) => this.update({ warning }),
+      900,
+      initialStill,
+    );
+  }
   snapshot = () => structuredClone(this.view);
   subscribe = (listener: (view: VoiceView) => void) => {
     this.listeners.add(listener);
@@ -68,11 +84,7 @@ export class VoiceClient {
   };
   private transcript() {
     this.update({
-      messages: liveMessages(
-        this.callId,
-        this.fragments,
-        this.answers.positioned(),
-      ).slice(-400),
+      messages: liveMessages(this.callId, this.fragments, []).slice(-400),
     });
   }
   private check() {
@@ -86,6 +98,10 @@ export class VoiceClient {
     if (!status.configured)
       throw new Error(
         "Live voice needs an OpenAI API key in the assistant runtime. Your regular text chat is still available.",
+      );
+    if (status.conversation_mode_supported !== true)
+      throw new Error(
+        "This runtime needs independent body control support. Connect the updated voice runtime before starting a call.",
       );
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.RTCPeerConnection)
       throw new Error(
@@ -112,11 +128,13 @@ export class VoiceClient {
       throw abortError();
     }
     this.media = media;
+    for (const track of media.getAudioTracks()) track.enabled = false;
     this.peer = new RTCPeerConnection();
     window.addEventListener("pagehide", this.leave);
     const peer = this.peer;
     this.audio = new Audio();
     this.audio.autoplay = true;
+    this.audio.muted = true;
     this.audioContext = new AudioContext();
     void this.audioContext.resume().catch(() => {});
     peer.ontrack = (event) => {
@@ -171,7 +189,11 @@ export class VoiceClient {
     this.allocation = voiceRequest("calls", "POST", {
       session_id: this.sessionId,
       sdp,
-      host_context: hostContext(this.controller, this.history),
+      mode: "conversation",
+      history: conversationWindow(this.history).map(({ role, content }) => ({
+        role,
+        content,
+      })),
     }).then((body) => {
       const id = voiceOfferSchema.shape.call_id.safeParse(body?.call_id);
       if (id.success) {
@@ -204,6 +226,28 @@ export class VoiceClient {
     );
     await this.waitFor(() => providerStarted, channel, "message", 10000);
     this.check();
+    await this.waitFor(
+      () => channel.readyState === "open",
+      channel,
+      "open",
+      10000,
+    );
+    this.check();
+    await installLivePolicy(channel, this.policyAbort.signal);
+    this.check();
+    this.policyReady = true;
+    this.facts = new LiveBodyFacts(channel, (receipt) => {
+      const facts = this.view.facts.filter(
+        (item) => item.eventId !== receipt.eventId,
+      );
+      this.update({ facts: [...facts, receipt].slice(-100) });
+    });
+    this.body.reconcile(
+      bodyMessages(this.callId, this.fragments, this.history),
+    );
+    for (const track of media.getAudioTracks())
+      track.enabled = !this.view.micMuted;
+    this.audio.muted = false;
     this.started = performance.now();
   }
   private waitFor(
@@ -274,6 +318,10 @@ export class VoiceClient {
       const elapsed = this.started
         ? Math.floor((now - this.started) / 1000)
         : 0;
+      if (speaking && !this.view.speaking)
+        this.update({
+          speechStarts: [...this.view.speechStarts, now].slice(-100),
+        });
       if (speaking !== this.view.speaking || elapsed !== this.view.elapsed)
         this.update({ speaking, elapsed });
       this.animation = requestAnimationFrame(measure);
@@ -285,7 +333,7 @@ export class VoiceClient {
     if (!this.media || this.ending) return;
     const muted = !this.view.micMuted;
     this.media.getAudioTracks().forEach((track) => {
-      track.enabled = !muted;
+      track.enabled = this.policyReady && !muted;
     });
     this.update({ micMuted: muted });
   };
@@ -293,13 +341,11 @@ export class VoiceClient {
     const envelope = voiceEventSchema.parse(raw);
     if (envelope.call_id !== this.callId) return;
     const { event, data } = envelope;
-    const recovered = cursor !== undefined && cursor <= this.stateCursor;
     if (cursor !== undefined) {
       if (cursor <= this.eventCursor) return;
       this.eventCursor = cursor;
-      // Snapshots include speech/action state, but not backend reply text.
-      if (cursor <= this.stateCursor && event !== "backend") return;
-      this.stateCursor = Math.max(this.stateCursor, cursor);
+      if (cursor <= this.stateCursor) return;
+      this.stateCursor = cursor;
     }
     if (event === "snapshot" && typeof data.cursor === "number") {
       if (data.cursor < this.stateCursor) return;
@@ -308,94 +354,25 @@ export class VoiceClient {
     if (event === "transcript") {
       this.fragments.push(fragmentSchema.parse(data));
       this.transcript();
-    } else if (event === "backend") {
-      const inner = data.event as Record<string, unknown>;
       if (
-        this.answers.accept(
-          String(data.delegation_id),
-          inner,
-          this.fragments.length,
-          this.fragments.filter((fragment) => fragment.role === "user").length,
-          recovered,
-        )
+        this.policyReady &&
+        !this.ending &&
+        !this.view.remoteClosed &&
+        data.role === "user"
       )
-        this.transcript();
-      if (inner.type === "error")
-        this.update({
-          warning:
-            typeof inner.message === "string"
-              ? inner.message
-              : "The assistant could not complete that request.",
-        });
-    } else if (event === "delegation") {
-      const delegation = delegationSchema.parse(data);
-      if (["running", "waiting", "pending_host"].includes(delegation.status)) {
-        if (this.activeDelegation !== delegation.id) this.abortActions();
-        this.activeDelegation = delegation.id;
-        this.pendingAction =
-          delegation.status === "pending_host" && delegation.pending_tool_call
-            ? { delegation: delegation.id, tool: delegation.pending_tool_call }
-            : undefined;
-        this.update({
-          work:
-            delegation.status === "pending_host"
-              ? "Moving with your idea"
-              : "Thinking with you",
-        });
-      }
-      if (
-        [
-          "superseded",
-          "cancelled",
-          "failed",
-          "result_sent",
-          "result_rejected",
-        ].includes(delegation.status)
-      ) {
-        for (const action of this.actions.values())
-          if (action.delegation === delegation.id && !action.submitted)
-            action.abort.abort();
-        if (this.activeDelegation === delegation.id) {
-          this.pendingAction = undefined;
-          this.update({ work: "" });
-        }
-      }
-      if (delegation.status === "pending_host") this.performPending();
+        this.body.observe(
+          bodyMessages(this.callId, this.fragments, this.history),
+        );
     } else if (event === "snapshot") {
       this.fragments = Array.isArray(data.transcript)
         ? data.transcript.map((item) => fragmentSchema.parse(item))
         : [];
       this.transcript();
       this.applyStatus(data);
-      const active =
-        typeof data.active_delegation === "string"
-          ? data.active_delegation
-          : "";
-      if (active !== this.activeDelegation) this.abortActions();
-      this.activeDelegation = active;
-      const states = data.delegations as
-        Record<string, { status: string }> | undefined;
-      const state = states?.[active];
-      if (state?.status !== "pending_host") this.abortActions();
-      this.update({
-        work:
-          state && ["running", "waiting", "pending_host"].includes(state.status)
-            ? state.status === "pending_host"
-              ? "Moving with your idea"
-              : "Thinking with you"
-            : "",
-      });
-      // Only reconcile the snapshot's current pending action, never historical entries.
-      this.pendingAction =
-        state?.status === "pending_host" && data.pending_tool_call
-          ? {
-              delegation: active,
-              tool: delegationSchema.shape.pending_tool_call.parse(
-                data.pending_tool_call,
-              )!,
-            }
-          : undefined;
-      this.performPending();
+      this.body.reconcile(
+        bodyMessages(this.callId, this.fragments, this.history),
+      );
+      // Backend/delegation events have no execution or visible text route.
     } else if (event === "status") this.applyStatus(data);
     else if (event === "usage")
       this.update({
@@ -409,9 +386,8 @@ export class VoiceClient {
   }
   private applyStatus(data: Record<string, unknown>) {
     if (data.status === "closed" || data.status === "interrupted") {
-      this.pendingAction = undefined;
       this.controller.setSpeechLevel?.(0);
-      this.abortActions();
+      this.body.close();
       this.update({
         remoteClosed: true,
         finalized: data.finalized === true || this.view.finalized,
@@ -423,115 +399,26 @@ export class VoiceClient {
       });
     }
   }
-  private abortActions() {
-    for (const action of this.actions.values())
-      if (!action.submitted) action.abort.abort();
-    this.controller.stop();
+  async cancelWork() {
+    this.body.stop();
+    this.update({ work: "" });
   }
-  private performPending() {
-    if (this.pendingAction)
-      void this.perform(this.pendingAction.delegation, this.pendingAction.tool);
-  }
-  private async perform(delegation: string, pending: Pending) {
-    const key = `${delegation}:${pending.call_id}`;
-    if (
-      this.ending ||
-      this.cancelling ||
-      this.view.remoteClosed ||
-      this.actions.has(key) ||
-      this.activeDelegation !== delegation
-    )
-      return;
-    const action: Action = {
-      delegation,
-      abort: new AbortController(),
-      submitted: false,
-    };
-    this.actions.set(key, action);
-    const receipt = await executeTool(
-      pending,
-      this.controller,
-      action.abort.signal,
-    );
-    if (
-      this.ending ||
-      this.cancelling ||
-      action.abort.signal.aborted ||
-      this.activeDelegation !== delegation
-    )
-      return;
+  resetPose() {
     try {
-      await voiceRequest(`calls/${this.callId}/context`, "PATCH", {
-        host_context: hostContext(this.controller, [
-          ...this.history,
-          ...this.view.messages,
-        ]),
-      });
-      if (
-        this.ending ||
-        this.cancelling ||
-        action.abort.signal.aborted ||
-        this.activeDelegation !== delegation
-      )
-        return;
-      action.submitted = true;
-      await voiceRequest(
-        `calls/${this.callId}/delegations/${encodeURIComponent(delegation)}/tool-result`,
-        "POST",
-        {
-          tool_call_id: pending.call_id,
-          tool_result: receipt.result,
-          tool_outcome: receipt.outcome || "success",
-        },
-      );
-    } catch (error) {
-      if (this.ending) return;
-      // A lost acknowledgement never repeats a physical action or resubmits blindly.
+      this.body.reset();
+    } catch {
       this.update({
         warning:
-          error instanceof VoiceHttpError && error.status === 409
-            ? "That movement was superseded or already recorded."
-            : "The movement finished locally, but its result could not be confirmed. It will not be repeated automatically.",
+          "Charlie could not reset. Wait for the avatar to load and try again.",
       });
-      try {
-        await this.reconcile();
-      } catch {
-        this.failure("Could not reconcile the live session after a movement.");
-      }
     }
-  }
-  private async reconcile() {
-    const data = await voiceRequest(`calls/${this.callId}`);
-    if (!Number.isSafeInteger(data.cursor) || data.cursor < 0)
-      throw new Error("The runtime returned an invalid voice snapshot.");
-    if (!this.ending)
-      this.receive({
-        type: "voice",
-        call_id: this.callId,
-        event: "snapshot",
-        data,
-      });
-  }
-  async cancelWork() {
-    this.cancelling = true;
-    this.pendingAction = undefined;
-    this.abortActions();
     this.update({ work: "" });
-    try {
-      if (this.callId && !this.ending)
-        await voiceRequest(`calls/${this.callId}/cancel`, "POST");
-    } finally {
-      this.cancelling = false;
-    }
-    if (this.callId && !this.ending) {
-      await this.reconcile();
-      this.performPending();
-    }
   }
   private leave = () => {
     this.ending = true;
+    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
-    this.abortActions();
+    this.body.close();
     if (this.callId)
       void fetch(`/api/voice/calls/${this.callId}/close`, {
         method: "POST",
@@ -542,8 +429,9 @@ export class VoiceClient {
   end = (): Promise<void> => {
     if (this.closing) return this.closing;
     this.ending = true;
+    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
-    this.abortActions();
+    this.body.close();
     this.media?.getAudioTracks().forEach((track) => {
       track.enabled = false;
     });
@@ -579,6 +467,7 @@ export class VoiceClient {
     return this.closing;
   };
   private disposeMedia() {
+    this.policyAbort.abort();
     if (this.disposed) return;
     this.disposed = true;
     this.controller.setSpeechLevel?.(0);
@@ -586,6 +475,7 @@ export class VoiceClient {
     clearTimeout(this.disconnectTimer);
     cancelAnimationFrame(this.animation);
     this.stopEvents?.();
+    this.facts?.close();
     this.media?.getTracks().forEach((track) => track.stop());
     this.peer?.close();
     this.audio?.pause();

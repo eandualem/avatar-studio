@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sameOrigin } from "@/lib/request-origin";
 export const maxDuration = 180;
-const url = (voice: boolean) =>
+const url = (body: boolean) =>
   (
-    (voice ? process.env.VOICE_RUNTIME_URL : undefined) ||
+    (body ? process.env.BODY_RUNTIME_URL : undefined) ||
     process.env.RUNTIME_URL ||
     "http://127.0.0.1:7100"
   ).replace(/\/$/, "");
@@ -13,7 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ operation: string }> },
 ) {
   const { operation } = await params;
-  if (!["chat", "cancel", "voice-chat", "voice-cancel"].includes(operation))
+  if (!["chat", "cancel", "body-chat", "body-cancel"].includes(operation))
     return NextResponse.json({ detail: "Not found" }, { status: 404 });
   if (!sameOrigin(request))
     return NextResponse.json({ detail: "Origin not allowed" }, { status: 403 });
@@ -22,10 +22,10 @@ export async function POST(
     const path = operation.endsWith("chat")
       ? "/api/chat"
       : `/api/chat/${z.string().uuid().parse(body.session_id)}/cancel`;
-    const response = await fetch(url(operation.startsWith("voice-")) + path, {
+    const response = await fetch(url(operation.startsWith("body-")) + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: operation.endsWith("chat") ? JSON.stringify(body) : undefined,
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(170000),
     });
     return new NextResponse(await response.text(), {

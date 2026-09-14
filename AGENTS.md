@@ -14,7 +14,31 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current status (Elias, 2026-09-14)
+## Independent parallel body control (issue #32 / PR #33)
+
+Elias resumed implementation on September 14, 2026. Start with
+[issue #32](https://github.com/eandualem/avatar-studio/issues/32),
+[the architecture and operating contract](docs/parallel-body-control.md), and
+[verification and activation notes](docs/parallel-body-verification.md).
+
+Live only converses. An independent body controller receives each coalesced user
+utterance and emits a movement tool or structured hold. The app owns revisions,
+exclusive execution, priority, cancellation and actual engine lifecycle facts.
+Implementation PR #33 passes 87 tests and all local checks. A real subscription
+body decision completed an eight-cycle run on the renderer; Live audio remains
+Elias-run acceptance. Runtime PR #123 is merged and isolated 7114 is active.
+GitHub Actions is blocked by account billing; see the verification note.
+Body decisions use fresh
+backend sessions to isolate session-scoped cancellation; text remains separate.
+
+Preserve Charlie, the layout, procedural solver and subscription setup. No
+agent-paid Live trial is authorized. Real audio acceptance belongs to Elias.
+Keep 7100/7110/7112/7113 and their histories intact. Issue #30 and draft PR #31
+are superseded experiments; do not merge #31. Preserve its branch for reference.
+The detailed verification note records current implementation/deployment status;
+inspect the actual checkout and runtime health before further changes.
+
+## Delivered history (earlier milestones; next-session direction above wins)
 
 Live interaction was accepted in PR #13; issue #11 is closed. Elias resumed work
 on animation responsiveness and naturalness in issue #14. Its opt-in Dev test
@@ -97,6 +121,21 @@ use separate 7113 with the updated startup prompt; text stays on 7112. All old
 runtime processes and their histories are preserved. Use **New conversation**
 for the new Live policy; session IDs do not migrate backend memory. Setup and
 verification are in `docs/expressive-greetings.md`. No new paid Live test was run.
+
+## Superseded Live dispatch experiment (issue #30 / draft PR #31)
+
+Elias's real voice trial exposed speech claiming movement with no initial
+backend delegation. Updated code appends the current concise Live policy over
+WebRTC on every new call and waits for its correlated acknowledgment before
+unmuting audio or executing pending tools. No runtime restart or new instance.
+Backend artifact v3 on 7112 and v1 on 7113 reinforces physical greeting work.
+79 tests and type/lint/build passed, but the later real Live trial still omitted
+initial greeting/wave delegation. This experiment did not establish reliability.
+See `docs/parallel-body-control.md` and issue #32 for the replacement architecture;
+`docs/live-action-dispatch.md` retains earlier evidence only. Do not resume its
+old greeting-only acceptance plan. Preserve runtimes/history and this unmerged
+branch; no agent-paid voice trial is authorized. GitHub's application job could
+not start because of account billing.
 
 ## Delivered milestone 5: GPT-Live voice
 

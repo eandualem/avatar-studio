@@ -183,5 +183,9 @@ export interface MotionController {
   setSpeechLevel?(level: number): void;
   reset?(): Pose;
   capture?(): AvatarSnapshot | undefined;
-  execute(motion: Motion, signal?: AbortSignal): Promise<MotionResult>;
+  execute(
+    motion: Motion,
+    signal?: AbortSignal,
+    onStarted?: () => void,
+  ): Promise<MotionResult>;
 }

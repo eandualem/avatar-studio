@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor, waitFor, type ActorRefFrom } from "xstate";
 import type { voiceMachine } from "@/machines/voiceMachine";
+import { bodyTransport } from "@/lib/body-runtime";
 import { VoiceClient } from "@/lib/voice-client";
 import { conversationMachine } from "@/machines/conversationMachine";
 import { restPose } from "@/lib/motion";
 import type { MotionController, MotionResult } from "@/types/avatar";
 import { voiceRequest, observeVoiceEvents } from "@/lib/voice-http";
 
+vi.mock("@/lib/body-runtime", () => ({
+  bodyTransport: {
+    decide: vi.fn(async () => null),
+    receipt: vi.fn(async () => {}),
+    cancel: vi.fn(async () => {}),
+  },
+}));
 vi.mock("@/lib/voice-http", () => ({
   voiceRequest: vi.fn(),
   observeVoiceEvents: vi.fn(() => vi.fn()),
@@ -21,6 +29,7 @@ vi.mock("@/lib/voice-http", () => ({
 }));
 const callId = "c3a45b02-ab96-43be-9d0f-2b9e449b96fb";
 const offer = {
+  mode: "conversation",
   call_id: callId,
   session_id: "session",
   transport: { type: "webrtc", sdp: "answer" },
@@ -55,6 +64,16 @@ let mic: ReturnType<typeof track>,
 let peers: FakePeer[];
 let speakers: FakeAudio[], audioLevel: number;
 class FakeChannel extends EventTarget {
+  readyState = "open";
+  autoAck = true;
+  send = vi.fn((raw: string) => {
+    const data = JSON.parse(raw);
+    if (this.autoAck)
+      this.emit({
+        type: data.type.replace(/append$/, "appended"),
+        client_event_id: data.event_id,
+      });
+  });
   onmessage: ((event: MessageEvent) => void) | null = null;
   emit(data: unknown) {
     const e = new MessageEvent("message", { data: JSON.stringify(data) });
@@ -142,7 +161,12 @@ beforeEach(() => {
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: vi.fn() });
   vi.mocked(voiceRequest).mockImplementation(async (path) => {
-    if (path === "status") return { enabled: true, configured: true };
+    if (path === "status")
+      return {
+        enabled: true,
+        configured: true,
+        conversation_mode_supported: true,
+      };
     if (path === "calls") return offer;
     if (path === `calls/${callId}`)
       return { cursor: 0, status: "active", transcript: [], delegations: {} };
@@ -156,57 +180,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("live audio lifecycle and delegated motion", () => {
-  it("refreshes avatar screenshots before voice tool results and never allocates an extra call for capture", async () => {
-    const motion = controller();
-    let sequence = 0;
-    motion.capture = () => ({
-      dataUri: `data:image/jpeg;base64,frame${++sequence}`,
-      capturedAt: new Date().toISOString(),
-      width: 320,
-      height: 512,
-    });
-    const client = new VoiceClient("session", motion);
-    await client.start();
-    const allocation = vi
-      .mocked(voiceRequest)
-      .mock.calls.find(([path]) => path === "calls")!;
-    expect(allocation[2]).toMatchObject({
-      host_context: {
-        attachments: [
-          { purpose: "screenshot", data_uri: "data:image/jpeg;base64,frame1" },
-        ],
-      },
-    });
-    client.receive(
-      event("delegation", {
-        id: "visual",
-        status: "pending_host",
-        pending_tool_call: {
-          tool_name: "capture_avatar",
-          call_id: "capture",
-          arguments: {},
-        },
-      }),
-    );
-    await flush();
-    const calls = vi.mocked(voiceRequest).mock.calls;
-    const patch = calls.findIndex(([path]) => path.endsWith("/context"));
-    const receipt = calls.findIndex(([path]) => path.endsWith("/tool-result"));
-    expect(patch).toBeGreaterThan(-1);
-    expect(receipt).toBeGreaterThan(patch);
-    expect(calls[patch][2]).toMatchObject({
-      host_context: {
-        attachments: [{ data_uri: "data:image/jpeg;base64,frame3" }],
-      },
-    });
-    expect(calls[receipt][2]).toMatchObject({
-      tool_result: { screenshot: "data:image/jpeg;base64,frame2" },
-    });
-    expect(motion.execute).not.toHaveBeenCalled();
-    expect(calls.filter(([path]) => path === "calls")).toHaveLength(1);
-    await client.end();
-  });
+describe("live audio lifecycle and independent motion", () => {
   it("recovers blocked playback and bases speaking on audible media rather than server status", async () => {
     let frame!: FrameRequestCallback;
     vi.stubGlobal(
@@ -319,7 +293,7 @@ describe("live audio lifecycle and delegated motion", () => {
     let allocate!: (value: typeof offer) => void;
     vi.mocked(voiceRequest).mockImplementation(async (path) =>
       path === "status"
-        ? { enabled: true, configured: true }
+        ? { enabled: true, configured: true, conversation_mode_supported: true }
         : path === "calls"
           ? new Promise((resolve) => {
               allocate = resolve;
@@ -334,112 +308,6 @@ describe("live audio lifecycle and delegated motion", () => {
     await Promise.all([start, end]);
     expect(voiceRequest).toHaveBeenCalledWith(`calls/${callId}/close`, "POST");
     expect(mic.stop).toHaveBeenCalledOnce();
-  });
-  it("executes only pending_host, deduplicates replay, and uses the voice result endpoint", async () => {
-    const body = controller(),
-      client = new VoiceClient("session", body);
-    await client.start();
-    client.receive(
-      event("backend", {
-        delegation_id: "d1",
-        event: {
-          type: "final_response",
-          content: "Working",
-          pending_tool_call: pending,
-        },
-      }),
-    );
-    expect(body.execute).not.toHaveBeenCalled();
-    const handoff = event("delegation", {
-      id: "d1",
-      status: "pending_host",
-      pending_tool_call: pending,
-    });
-    client.receive(handoff);
-    client.receive(handoff);
-    await flush();
-    expect(body.execute).toHaveBeenCalledOnce();
-    expect(voiceRequest).toHaveBeenCalledWith(
-      `calls/${callId}/context`,
-      "PATCH",
-      expect.any(Object),
-    );
-    expect(voiceRequest).toHaveBeenCalledWith(
-      `calls/${callId}/delegations/d1/tool-result`,
-      "POST",
-      { tool_call_id: "hand", tool_result: completed, tool_outcome: "success" },
-    );
-    await client.end();
-  });
-  it.each(["delegation", "snapshot"])(
-    "aborts superseded motion from %s without submitting a stale result",
-    async (source) => {
-      const body = controller();
-      vi.mocked(body.execute).mockImplementation(
-        (_motion, signal) =>
-          new Promise((resolve) =>
-            signal?.addEventListener("abort", () =>
-              resolve({ ...completed, status: "interrupted" }),
-            ),
-          ),
-      );
-      const client = new VoiceClient("session", body);
-      await client.start();
-      client.receive(
-        event("delegation", {
-          id: "d1",
-          status: "pending_host",
-          pending_tool_call: pending,
-        }),
-      );
-      client.receive(
-        source === "delegation"
-          ? event("delegation", { id: "d1", status: "superseded" })
-          : event("snapshot", {
-              status: "active",
-              transcript: [],
-              active_delegation: "d1",
-              delegations: { d1: { status: "cancelled" } },
-            }),
-      );
-      expect(vi.mocked(body.execute).mock.calls[0][1]?.aborted).toBe(true);
-      await flush();
-      expect(
-        vi
-          .mocked(voiceRequest)
-          .mock.calls.some(([path]) => path.endsWith("tool-result")),
-      ).toBe(false);
-      await client.end();
-    },
-  );
-  it("does not repeat a physical action after a lost result acknowledgement", async () => {
-    const body = controller(),
-      client = new VoiceClient("session", body);
-    await client.start();
-    vi.mocked(voiceRequest).mockImplementation(async (path) => {
-      if (path.endsWith("tool-result")) throw new Error("connection lost");
-      if (path === `calls/${callId}`)
-        return {
-          cursor: 1,
-          status: "active",
-          transcript: [],
-          active_delegation: "d1",
-          delegations: { d1: { status: "pending_host" } },
-          pending_tool_call: pending,
-        };
-      return { finalized: true };
-    });
-    client.receive(
-      event("delegation", {
-        id: "d1",
-        status: "pending_host",
-        pending_tool_call: pending,
-      }),
-    );
-    await flush();
-    expect(body.execute).toHaveBeenCalledOnce();
-    expect(client.snapshot().warning).toContain("not be repeated");
-    await client.end();
   });
   it("reconciles transcript snapshots and ignores historical cancelled actions", async () => {
     const body = controller(),
@@ -483,7 +351,7 @@ describe("live audio lifecycle and delegated motion", () => {
   it("closes an allocated call when its answer is malformed", async () => {
     vi.mocked(voiceRequest).mockImplementation(async (path) =>
       path === "status"
-        ? { enabled: true, configured: true }
+        ? { enabled: true, configured: true, conversation_mode_supported: true }
         : path === "calls"
           ? { call_id: callId, transport: { sdp: "" } }
           : { finalized: true },
@@ -500,30 +368,6 @@ describe("live audio lifecycle and delegated motion", () => {
     client.receive(event("usage", { finalized: true }));
     await client.end();
     expect(voiceRequest).toHaveBeenCalledWith(`calls/${callId}/close`, "POST");
-  });
-  it("does not execute a late handoff while cancellation is draining", async () => {
-    const body = controller(),
-      client = new VoiceClient("session", body);
-    await client.start();
-    let finish!: (value: unknown) => void;
-    vi.mocked(voiceRequest).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
-    const cancelled = client.cancelWork();
-    client.receive(
-      event("delegation", {
-        id: "d1",
-        status: "pending_host",
-        pending_tool_call: pending,
-      }),
-    );
-    expect(body.execute).not.toHaveBeenCalled();
-    finish({ accepted: true });
-    await cancelled;
-    await client.end();
   });
   it("releases the call when the owning app actor is stopped", async () => {
     const actor = createActor(conversationMachine, {
@@ -591,485 +435,137 @@ describe("live audio lifecycle and delegated motion", () => {
   });
 });
 
-it("contract review: retains normal streamed backend text with a null final content", async () => {
-  const client = new VoiceClient("session", controller());
-  await client.start();
-  try {
-    client.receive(
-      event("backend", {
-        delegation_id: "d1",
-        event: { type: "text_delta", content: "Complete answer" },
-      }),
-    );
-    client.receive(
-      event("backend", {
-        delegation_id: "d1",
-        event: {
-          type: "final_response",
-          content: null,
-          streamed: true,
-          message_id: "reply-1",
-        },
-      }),
-    );
-    expect(
-      client
-        .snapshot()
-        .messages.some(
-          (m) => m.source === "backend" && m.content === "Complete answer",
-        ),
-    ).toBe(true);
-  } finally {
-    await client.end();
-  }
-});
-
-it("contract review: reconciles a new pending action that arrives before cancel HTTP completes", async () => {
-  const body = controller(),
-    client = new VoiceClient("session", body);
-  await client.start();
-  let finish!: (value: unknown) => void;
-  vi.mocked(voiceRequest).mockImplementation(async (path) => {
-    if (path.endsWith("/cancel"))
-      return new Promise((resolve) => {
-        finish = resolve;
-      });
-    if (path === `calls/${callId}`)
-      return {
-        status: "active",
-        cursor: 30,
-        transcript: [],
-        active_delegation: "d2",
-        delegations: { d2: { status: "pending_host" } },
-        pending_tool_call: pending,
-      };
-    return { finalized: true, accepted: true };
+it("starts a body decision from user speech without delegation and keeps only Live speech visible", async () => {
+  vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
+  const motion = controller();
+  vi.mocked(bodyTransport.decide).mockResolvedValueOnce({
+    ...pending,
+    arguments: { ...pending.arguments, intent: "explicit", label: "wave" },
   });
-  try {
-    const cancelled = client.cancelWork();
-    client.receive(event("delegation", { id: "d2", status: "running" }));
-    client.receive(
-      event("delegation", {
-        id: "d2",
-        status: "pending_host",
-        pending_tool_call: pending,
-      }),
-    );
-    expect(body.execute).not.toHaveBeenCalled();
-    finish({ cancelled: true });
-    await cancelled;
-    await flush();
-    expect(body.execute).toHaveBeenCalledOnce();
-  } finally {
-    await client.end();
-  }
-});
-
-it("contract review: ignores REST snapshot older than already processed SSE state", async () => {
-  const body = controller(),
-    client = new VoiceClient("session", body);
-  await client.start();
-  let snapshot!: (value: unknown) => void;
-  vi.mocked(voiceRequest).mockImplementation(async (path) => {
-    if (path.endsWith("/delegations/d1/tool-result"))
-      throw new Error("lost acknowledgment");
-    if (path === `calls/${callId}`)
-      return new Promise((resolve) => {
-        snapshot = resolve;
-      });
-    return { finalized: true, accepted: true };
+  vi.mocked(motion.execute).mockImplementationOnce(async (_m, _s, started) => {
+    started?.();
+    return completed;
   });
-  vi.mocked(body.execute)
-    .mockResolvedValueOnce(completed)
-    .mockImplementationOnce(
-      (_motion, signal) =>
-        new Promise((resolve) =>
-          signal?.addEventListener("abort", () =>
-            resolve({ ...completed, status: "interrupted" }),
-          ),
-        ),
-    );
-  const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
-  try {
-    receive(
-      10,
-      event("delegation", {
-        id: "d1",
-        status: "pending_host",
-        pending_tool_call: pending,
-      }),
-    );
-    await flush();
-    receive(
-      20,
-      event("delegation", {
-        id: "d2",
-        status: "pending_host",
-        pending_tool_call: { ...pending, call_id: "hand-2" },
-      }),
-    );
-    expect(body.execute).toHaveBeenCalledTimes(2);
-    snapshot({
-      status: "active",
-      cursor: 11,
-      transcript: [],
-      active_delegation: "d1",
-      delegations: { d1: { status: "pending_host" } },
-      pending_tool_call: pending,
-    });
-    await flush();
-    expect(vi.mocked(body.execute).mock.calls[1][1]?.aborted).toBe(false);
-  } finally {
-    await client.end();
-  }
-});
-
-it("retains backend text from replay without rolling action state behind a newer snapshot", async () => {
-  const body = controller(),
-    client = new VoiceClient("session", body);
+  const client = new VoiceClient("session", motion, [
+    { id: "prior", role: "assistant", content: "Earlier conversation" },
+  ]);
   await client.start();
-  vi.mocked(body.execute).mockImplementation(
-    (_motion, signal) =>
-      new Promise((resolve) =>
-        signal?.addEventListener("abort", () =>
-          resolve({ ...completed, status: "interrupted" }),
-        ),
-      ),
-  );
-  const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
-  receive(
-    5,
-    event("backend", {
-      delegation_id: "d1",
-      event: { type: "text_delta", content: "Complete" },
+  expect(voiceRequest).toHaveBeenCalledWith(
+    "calls",
+    "POST",
+    expect.objectContaining({
+      mode: "conversation",
+      history: [{ role: "assistant", content: "Earlier conversation" }],
     }),
   );
   client.receive(
-    event("snapshot", {
-      cursor: 20,
-      status: "active",
-      transcript: [],
-      active_delegation: "d2",
-      delegations: { d2: { status: "pending_host" } },
-      pending_tool_call: { ...pending, call_id: "hand-2" },
-    }),
+    event("transcript", { role: "user", delta: "Wave please" }),
+    1,
   );
-  receive(
-    10,
+  client.receive(event("transcript", { role: "assistant", delta: "Sure." }), 2);
+  client.receive(
     event("delegation", {
-      id: "d1",
+      id: "old",
       status: "pending_host",
       pending_tool_call: pending,
     }),
-  );
-  receive(
-    12,
-    event("backend", {
-      delegation_id: "d1",
-      event: { type: "text_delta", content: " answer" },
-    }),
-  );
-  receive(
-    12,
-    event("backend", {
-      delegation_id: "d1",
-      event: { type: "text_delta", content: " answer" },
-    }),
-  );
-  receive(
-    13,
-    event("backend", {
-      delegation_id: "d1",
-      event: {
-        type: "final_response",
-        content: null,
-        streamed: true,
-        message_id: "reply-1",
-      },
-    }),
-  );
-  expect(body.execute).toHaveBeenCalledOnce();
-  expect(vi.mocked(body.execute).mock.calls[0][1]?.aborted).toBe(false);
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Complete answer",
-  ]);
-  await client.end();
-});
-
-it("retains one assistant message across streamed host continuations", async () => {
-  const client = new VoiceClient("session", controller());
-  await client.start();
-  const backend = (inner: Record<string, unknown>) =>
-    client.receive(event("backend", { delegation_id: "d1", event: inner }));
-  backend({ type: "text_delta", content: "Raising" });
-  backend({ type: "text_delta", content: " my hand." });
-  backend({
-    type: "final_response",
-    content: null,
-    streamed: true,
-    message_id: "reply-1",
-    pending_tool_call: pending,
-  });
-  backend({ type: "text_delta", content: "Done." });
-  backend({
-    type: "final_response",
-    content: "",
-    streamed: true,
-    message_id: "reply-1",
-  });
-  expect(client.snapshot().messages).toEqual([
-    {
-      id: `backend:${callId}:d1:reply:0`,
-      role: "assistant",
-      source: "backend",
-      content: "Raising my hand.\n\nDone.",
-    },
-  ]);
-  await client.end();
-});
-
-it.each(["pending_host", "cancelled"])(
-  "recheck: retains only current %s work when speech makes the cancel snapshot stale",
-  async (status) => {
-    const body = controller(),
-      client = new VoiceClient("session", body);
-    await client.start();
-    let finishCancel!: (value: unknown) => void;
-    let finishSnapshot!: (value: unknown) => void;
-    const state = {
-      status: "active",
-      cursor: 20,
-      transcript: [],
-      active_delegation: "d2",
-      delegations: { d2: { status: "pending_host" } },
-      pending_tool_call: pending,
-    };
-    let reads = 0;
-    vi.mocked(voiceRequest).mockImplementation(async (path) => {
-      if (path.endsWith("/cancel"))
-        return new Promise((resolve) => {
-          finishCancel = resolve;
-        });
-      if (path === `calls/${callId}`) {
-        if (reads++ === 0)
-          return new Promise((resolve) => {
-            finishSnapshot = resolve;
-          });
-        return {
-          ...state,
-          cursor: 21,
-          transcript: [
-            { role: "user", delta: "still here", start_ms: 0, end_ms: 250 },
-          ],
-        };
-      }
-      return { finalized: true, accepted: true };
-    });
-    const receive = vi.mocked(observeVoiceEvents).mock.calls.at(-1)![1];
-    try {
-      const cancellation = client.cancelWork();
-      receive(
-        20,
-        event("delegation", {
-          id: "d2",
-          status: "pending_host",
-          pending_tool_call: pending,
-        }),
-      );
-      finishCancel({ cancelled: true });
-      await flush();
-      if (status === "cancelled")
-        receive(21, event("delegation", { id: "d2", status: "cancelled" }));
-      receive(
-        22,
-        event("transcript", {
-          role: "user",
-          delta: "still here",
-          start_ms: 0,
-          end_ms: 250,
-        }),
-      );
-      finishSnapshot(state);
-      await cancellation;
-      await flush();
-      expect(body.execute).toHaveBeenCalledTimes(
-        status === "pending_host" ? 1 : 0,
-      );
-    } finally {
-      await client.end();
-    }
-  },
-);
-
-it("interleaves full replies with speech and keeps their slots through late finalization and snapshots", async () => {
-  const client = new VoiceClient("session", controller());
-  await client.start();
-  const first = {
-    role: "user",
-    delta: "Please clap.",
-    start_ms: 0,
-    end_ms: 500,
-  };
-  const second = {
-    role: "user",
-    delta: "Now run.",
-    start_ms: 2000,
-    end_ms: 2400,
-  };
-  client.receive(event("transcript", first), 1);
-  client.receive(
-    event("backend", {
-      delegation_id: "clap",
-      event: { type: "text_delta", content: "Clapping" },
-    }),
-    2,
-  );
-  const replyId = client.snapshot().messages[1].id;
-  client.receive(event("transcript", second), 3);
-  client.receive(
-    event("backend", {
-      delegation_id: "clap",
-      event: {
-        type: "final_response",
-        content: "Clapped five times.",
-        message_id: "final-id",
-      },
-    }),
-    4,
-  );
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Please clap.",
-    "Clapped five times.",
-    "Now run.",
-  ]);
-  expect(client.snapshot().messages[1].id).toBe(replyId);
-  client.receive(
-    event("snapshot", {
-      cursor: 5,
-      status: "active",
-      transcript: [first, second],
-      delegations: {},
-    }),
-    5,
-  );
-  client.receive(
-    event("backend", {
-      delegation_id: "run",
-      event: { type: "final_response", content: "Running." },
-    }),
-    6,
-  );
-  client.receive(
-    event("transcript", {
-      role: "user",
-      delta: "And stop.",
-      start_ms: 5000,
-      end_ms: 5400,
-    }),
-    7,
-  );
-  // A duplicate replay must neither duplicate the answer nor move it below the new request.
-  client.receive(
-    event("backend", {
-      delegation_id: "run",
-      event: { type: "final_response", content: "Running." },
-    }),
-    6,
-  );
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Please clap.",
-    "Clapped five times.",
-    "Now run.",
-    "Running.",
-    "And stop.",
-  ]);
-  await client.end();
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Please clap.",
-    "Clapped five times.",
-    "Now run.",
-    "Running.",
-    "And stop.",
-  ]);
-});
-
-it("places a new backend continuation after intervening user speech instead of extending the earlier bubble", async () => {
-  const client = new VoiceClient("session", controller());
-  await client.start();
-  const backend = (inner: Record<string, unknown>) =>
-    client.receive(event("backend", { delegation_id: "d1", event: inner }));
-  client.receive(
-    event("transcript", { role: "user", delta: "Raise your hand." }),
-  );
-  backend({ type: "text_delta", content: "Raising my hand." });
-  backend({
-    type: "final_response",
-    content: null,
-    pending_tool_call: pending,
-  });
-  client.receive(event("transcript", { role: "assistant", delta: "Okay." }));
-  client.receive(event("transcript", { role: "user", delta: "Keep going." }));
-  backend({ type: "text_delta", content: "Done" });
-  const continuationId = client.snapshot().messages.at(-1)!.id;
-  backend({
-    type: "final_response",
-    content: "Done.",
-    message_id: "same-model-message",
-  });
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Raise your hand.",
-    "Raising my hand.",
-    "Okay.",
-    "Keep going.",
-    "Done.",
-  ]);
-  expect(client.snapshot().messages.at(-1)!.id).toBe(continuationId);
-  await client.end();
-});
-
-it("keeps known reply anchors when older backend events arrive after a REST snapshot", async () => {
-  const client = new VoiceClient("session", controller());
-  await client.start();
-  const first = { role: "user", delta: "Clap." },
-    next = { role: "user", delta: "Now run." };
-  client.receive(event("transcript", first), 1);
-  client.receive(
-    event("backend", {
-      delegation_id: "d1",
-      event: { type: "final_response", content: "Starting." },
-    }),
-    2,
-  );
-  client.receive(
-    event("snapshot", {
-      cursor: 10,
-      status: "active",
-      transcript: [first, next],
-      delegations: {},
-    }),
-  );
-  client.receive(
-    event("backend", {
-      delegation_id: "d1",
-      event: { type: "text_delta", content: "Done." },
-    }),
     3,
   );
-  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
-    "Clap.",
-    "Starting.\n\nDone.",
-    "Now run.",
-  ]);
   client.receive(
     event("backend", {
-      delegation_id: "missed",
-      event: { type: "final_response", content: "Recovered old text." },
+      delegation_id: "old",
+      event: { type: "text_delta", content: "Internal prose" },
     }),
     4,
   );
-  expect(client.snapshot().messages.at(-1)).toMatchObject({
-    content: "Recovered old text.",
-    orderUncertain: true,
+  await vi.advanceTimersByTimeAsync(900);
+  expect(motion.execute).toHaveBeenCalledOnce();
+  expect(bodyTransport.decide).toHaveBeenCalledOnce();
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Wave please",
+    "Sure.",
+  ]);
+  expect(client.snapshot().facts.map((f) => f.status)).toEqual([
+    "started",
+    "completed",
+  ]);
+  expect(
+    client.snapshot().facts.every((f) => f.acknowledgedAt !== undefined),
+  ).toBe(true);
+  expect(
+    vi
+      .mocked(voiceRequest)
+      .mock.calls.some(([path]) => /tool-result|context|cancel/.test(path)),
+  ).toBe(false);
+  await client.end();
+});
+
+it("ignores delegated execution in both events and snapshots, including after stop", async () => {
+  const motion = controller(),
+    client = new VoiceClient("session", motion);
+  await client.start();
+  client.receive(
+    event("delegation", {
+      id: "old",
+      status: "pending_host",
+      pending_tool_call: pending,
+    }),
+    1,
+  );
+  await client.cancelWork();
+  client.receive(
+    event("snapshot", {
+      cursor: 8,
+      status: "active",
+      transcript: [{ role: "user", delta: "Old wave" }],
+      active_delegation: "old",
+      delegations: { old: { status: "pending_host" } },
+      pending_tool_call: pending,
+    }),
+  );
+  client.receive(event("transcript", { role: "user", delta: "Old wave" }), 2);
+  expect(motion.execute).not.toHaveBeenCalled();
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Old wave",
+  ]);
+  await client.end();
+});
+
+it("stop and reset invalidate late body decisions while Live remains connected", async () => {
+  vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
+  const motion = controller(),
+    client = new VoiceClient("session", motion);
+  motion.reset = vi.fn(restPose);
+  let finish!: (value: typeof pending) => void;
+  vi.mocked(bodyTransport.decide).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  await client.start();
+  client.receive(event("transcript", { role: "user", delta: "Wave" }), 1);
+  await vi.advanceTimersByTimeAsync(900);
+  client.resetPose();
+  finish(pending);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(motion.reset).toHaveBeenCalledOnce();
+  expect(motion.execute).not.toHaveBeenCalled();
+  expect(mic.enabled).toBe(true);
+  expect(peers[0].close).not.toHaveBeenCalled();
+  await client.end();
+});
+
+it("rejects old delegated-only runtimes before microphone access and allocation", async () => {
+  vi.mocked(voiceRequest).mockResolvedValueOnce({
+    enabled: true,
+    configured: true,
   });
+  const client = new VoiceClient("session", controller());
+  await expect(client.start()).rejects.toThrow(
+    "independent body control support",
+  );
+  expect(getUserMedia).not.toHaveBeenCalled();
+  expect(voiceRequest).toHaveBeenCalledTimes(1);
   await client.end();
 });

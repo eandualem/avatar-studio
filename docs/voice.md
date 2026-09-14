@@ -1,5 +1,10 @@
 # GPT-Live voice
 
+Current Live uses [independent body control](parallel-body-control.md) and
+[the 7114 activation contract](parallel-body-verification.md). The delegated
+workflow below describes earlier releases and is retained as historical setup
+context; it is not the active movement path.
+
 **Talk live** connects Charlie to OpenAI GPT-Live 1 through assistant-runtime.
 The voice model listens and speaks directly. When it delegates a movement,
 the runtime's configured backend model composes the same continuous avatar
