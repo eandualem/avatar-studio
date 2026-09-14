@@ -39,6 +39,13 @@ the `screen` built-in on both runtimes. Text vision is verified against standing
 and kicking poses; voice context/result ordering is tested with synthetic
 transport. Vision can misread foreshortened joints: compare image and actual pose.
 
+Issue #20 is switching the backend to Elias’s Codex subscription, with no API
+fallback. The runtime agent owns isolated authentication/persistence fixes and a
+guarded server on 7112; do not redirect the app until its readiness and routing
+are verified. Sol/low is selected for visual/tools, Luna for auxiliary defaults,
+working memory off. Existing 7100/7110 histories must remain available. Setup and
+verification belong in `docs/codex-subscription.md`. GPT-Live audio remains API-backed.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction
