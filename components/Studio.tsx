@@ -228,6 +228,15 @@ function Workspace() {
                   <AudioLines size={18} /> Talk live
                 </button>
               )}
+              {!live && voice.data.savedTrace?.callId && (
+                <button
+                  type="button"
+                  className="live-start"
+                  onClick={voice.actions.copyMotion}
+                >
+                  {voice.data.copyStatus || "Copy movement details"}
+                </button>
+              )}
             </div>
           </div>
           <h2>
@@ -368,7 +377,7 @@ function Workspace() {
                     <Volume2 size={18} /> Enable sound
                   </button>
                 )}
-                {voice.data.view?.work && (
+                {voiceReady && (
                   <button
                     type="button"
                     onClick={voice.actions.stopWork}
@@ -384,6 +393,20 @@ function Workspace() {
                   disabled={voice.state === VoicePhase.Closing}
                 >
                   <PhoneOff size={18} /> End call
+                </button>
+                <button
+                  type="button"
+                  onClick={voice.actions.resetPose}
+                  disabled={!voiceReady}
+                >
+                  Reset pose
+                </button>
+                <button
+                  type="button"
+                  onClick={voice.actions.copyMotion}
+                  disabled={!voiceReady}
+                >
+                  {voice.data.copyStatus || "Copy movement details"}
                 </button>
               </div>
               <p className="live-note">

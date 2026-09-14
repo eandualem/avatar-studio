@@ -10,6 +10,7 @@ export const voiceMachine = setup({
       sessionId: string;
       controller: MotionController;
       history: Message[];
+      initialStill?: boolean;
     },
     output: {} as { messages: Message[]; error: string },
     context: {} as { client: VoiceClient; view: VoiceView; error: string },
@@ -17,6 +18,7 @@ export const voiceMachine = setup({
       | { type: "END" }
       | { type: "MUTE" }
       | { type: "PLAY" }
+      | { type: "RESET_POSE" }
       | { type: "CANCEL_WORK" },
   },
   actors: {
@@ -54,6 +56,7 @@ export const voiceMachine = setup({
       input.sessionId,
       input.controller,
       input.history,
+      input.initialStill,
     );
     return { client, view: client.snapshot(), error: "" };
   },
@@ -142,6 +145,11 @@ export const voiceMachine = setup({
           target: "cancelling",
           description:
             "Stop body motion and request backend cancellation while retaining audio.",
+        },
+        RESET_POSE: {
+          actions: ({ context }) => context.client.resetPose(),
+          description:
+            "Invalidate pending body decisions and reset the engine immediately.",
         },
       },
     },

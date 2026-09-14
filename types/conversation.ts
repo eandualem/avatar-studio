@@ -26,6 +26,14 @@ export const conversationSchema = z.object({
   messages: z.array(messageSchema).max(400),
   mode: z.enum(["text", "voice"]).optional(),
   voiceCalls: z.array(z.string()).max(100).optional(),
+  motionTrace: z
+    .object({
+      callId: z.string(),
+      body: z.record(z.unknown()),
+      facts: z.array(z.unknown()).max(100),
+      speechStarts: z.array(z.number()).max(100),
+    })
+    .optional(),
 });
 export const historySchema = z.array(conversationSchema).max(50);
 export type Message = z.infer<typeof messageSchema>;

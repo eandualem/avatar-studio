@@ -263,7 +263,11 @@ export function createMotionController(): MotionController {
       current = driver.reset();
       return structuredClone(current);
     },
-    execute(motion, signal) {
+    execute(motion, signal, onStarted) {
+      if (signal?.aborted)
+        return Promise.reject(
+          new DOMException("Movement cancelled", "AbortError"),
+        );
       if (!driver)
         return Promise.reject(new Error("The avatar is still loading."));
       cancel?.();
@@ -275,7 +279,7 @@ export function createMotionController(): MotionController {
             "Motion is too long after speed limits; use fewer or closer targets.",
           ),
         );
-      return new Promise<MotionResult>((resolve) => {
+      return new Promise<MotionResult>((resolve, reject) => {
         const started = performance.now();
         let previousTime = 0;
         let firstFrameMs: number | null = null;
@@ -290,13 +294,17 @@ export function createMotionController(): MotionController {
         let frame = 0,
           done = false,
           constrained = duration > requestedSeconds(motion) + 0.001;
-        const finish = (status: MotionResult["status"]) => {
+        const finish = (status: MotionResult["status"], error?: unknown) => {
           if (done) return;
           done = true;
           cancelAnimationFrame(frame);
           signal?.removeEventListener("abort", abort);
           cancel = undefined;
           if (status === "interrupted") driver?.halt?.();
+          if (error) {
+            reject(error);
+            return;
+          }
           resolve({
             status,
             pose: structuredClone(current),
@@ -339,43 +347,54 @@ export function createMotionController(): MotionController {
         signal?.addEventListener("abort", abort, { once: true });
         if (signal?.aborted) return abort();
         const tick = () => {
-          const time = (performance.now() - started) / 1000;
-          firstFrameMs ??= time * 1000;
-          const gapMs = (time - previousTime) * 1000;
-          frames++;
-          if (gapMs > 50) slowFrames++;
-          maxFrameGapMs = Math.max(maxFrameGapMs, gapMs);
-          const segment =
-            segments.find((s) => time < s.start + s.duration) ??
-            segments.at(-1)!;
-          const t = Math.min(
-            1,
-            Math.max(0, (time - segment.start) / segment.duration),
-          );
-          const applyStart = performance.now();
-          const applied = driver!.apply(
-            interpolate(segment.from, segment.to, motionEase(t, segment.swing)),
-            Math.min(0.033, Math.max(0.001, time - previousTime)),
-            motion.mode ?? "grounded",
-          );
-          const applyMs = performance.now() - applyStart;
-          totalApplyMs += applyMs;
-          maxApplyMs = Math.max(maxApplyMs, applyMs);
-          previousTime = time;
-          current = applied.pose;
-          constrained ||= applied.constrained;
-          applied.reasons?.forEach((reason) => reasons.add(reason));
-          if (
-            time >= duration &&
-            (applied.settled !== false || time >= duration + 3)
-          ) {
-            if (applied.settled === false) {
-              constrained = true;
-              reasons.add("Movement stopped before the target settled");
-              driver!.halt?.();
-            }
-            finish("completed");
-          } else frame = requestAnimationFrame(tick);
+          try {
+            const time = (performance.now() - started) / 1000;
+            firstFrameMs ??= time * 1000;
+            const gapMs = (time - previousTime) * 1000;
+            frames++;
+            if (gapMs > 50) slowFrames++;
+            maxFrameGapMs = Math.max(maxFrameGapMs, gapMs);
+            const segment =
+              segments.find((s) => time < s.start + s.duration) ??
+              segments.at(-1)!;
+            const t = Math.min(
+              1,
+              Math.max(0, (time - segment.start) / segment.duration),
+            );
+            const applyStart = performance.now();
+            const applied = driver!.apply(
+              interpolate(
+                segment.from,
+                segment.to,
+                motionEase(t, segment.swing),
+              ),
+              Math.min(0.033, Math.max(0.001, time - previousTime)),
+              motion.mode ?? "grounded",
+            );
+            const applyMs = performance.now() - applyStart;
+            totalApplyMs += applyMs;
+            maxApplyMs = Math.max(maxApplyMs, applyMs);
+            previousTime = time;
+            current = applied.pose;
+            // Execution is confirmed only after the rig has applied its first frame.
+            if (frames === 1) onStarted?.();
+            if (done) return;
+            constrained ||= applied.constrained;
+            applied.reasons?.forEach((reason) => reasons.add(reason));
+            if (
+              time >= duration &&
+              (applied.settled !== false || time >= duration + 3)
+            ) {
+              if (applied.settled === false) {
+                constrained = true;
+                reasons.add("Movement stopped before the target settled");
+                driver!.halt?.();
+              }
+              finish("completed");
+            } else frame = requestAnimationFrame(tick);
+          } catch (error) {
+            finish("interrupted", error);
+          }
         };
         frame = requestAnimationFrame(tick);
       });

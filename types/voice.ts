@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { pendingSchema, type Message } from "./conversation";
+import type { BodyView } from "@/lib/body-controller";
+import type { FactReceipt } from "@/lib/live-body-facts";
 
 export enum VoicePhase {
   Idle = "idle",
@@ -10,6 +12,7 @@ export enum VoicePhase {
 }
 
 export const voiceOfferSchema = z.object({
+  mode: z.literal("conversation"),
   call_id: z.string().uuid(),
   session_id: z.string(),
   transport: z.object({ type: z.literal("webrtc"), sdp: z.string().min(1) }),
@@ -45,6 +48,9 @@ export type VoiceView = {
   finalized: boolean;
   warning: string;
   fatal: string;
+  body: BodyView;
+  facts: FactReceipt[];
+  speechStarts: number[];
 };
 export const initialVoiceView = (): VoiceView => ({
   callId: "",
@@ -58,4 +64,7 @@ export const initialVoiceView = (): VoiceView => ({
   finalized: false,
   warning: "",
   fatal: "",
+  body: { still: false, actions: [] },
+  facts: [],
+  speechStarts: [],
 });

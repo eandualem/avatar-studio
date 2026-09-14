@@ -201,8 +201,9 @@ export function captureAvatar(controller: MotionController): {
 export function hostContext(
   controller: MotionController,
   visibleHistory?: Message[],
+  options: { capture?: boolean } = {},
 ) {
-  const capture = captureAvatar(controller);
+  const capture = options.capture === false ? {} : captureAvatar(controller);
   return {
     version: 1,
     host: { name: "avatar-studio", kind: "browser", version: "0.2.0" },

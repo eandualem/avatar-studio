@@ -9,6 +9,9 @@ Built with Next.js, Three.js and XState, backed by
 [assistant-runtime](https://github.com/eandualem/assistant-runtime).
 The approved Blender model and reference layout are preserved.
 
+[Independent speech and body control](docs/parallel-body-control.md) replaces
+Live-delegated movement. See [verification and activation](docs/parallel-body-verification.md).
+
 ## Run locally
 
 Use Bun 1.4 or later and Node 22 or later:
@@ -47,9 +50,9 @@ right foot, then slowly lift your left foot and hold it.”
 The microphone fills the composer for editing before sending.
 
 For direct audio, enable assistant-runtime's **GPT-Live 1** integration and select
-**Talk live**. It connects microphone and speaker, displays spoken fragments and
-backend answers, and lets the assistant use Charlie's existing movement tools.
-Mute, stop delegated movement, or end the call from the live controls.
+**Talk live**. It connects microphone and speaker and displays user/Live speech. A separate
+subscription-backed controller moves Charlie from each new user utterance.
+Mute, stop movement, reset the pose, or end the call from the live controls.
 See [voice setup and limits](docs/voice.md). OpenAI API access is required for audio;
 credentials stay in the runtime. No microphone starts automatically.
 
@@ -72,11 +75,11 @@ See [movement testing and guidance](docs/motion-testing.md).
   and Rapier checks for approximate self-collision and planted-foot support.
 - Smooth transitions, cancellation, typed chat and local history.
 - Browser microphone dictation, where SpeechRecognition is supported.
-- GPT-Live audio, transcripts, delegated body actions and explicit call controls.
+- GPT-Live audio, transcripts, independent body actions and explicit call controls.
 
 Complete anatomical modelling, dynamic walking/balance, detailed mesh collision,
 facial shapes and lip-sync remain future work. Text-chat replies arrive per model
-turn; live speech fragments and delegated backend text stream during calls.
+turn; only user and Live speech appear during calls; body decisions stay internal.
 See [architecture and limits](docs/architecture.md)
 and [solver selection](docs/motion-solvers.md).
 

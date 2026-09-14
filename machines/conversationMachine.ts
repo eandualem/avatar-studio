@@ -85,7 +85,7 @@ export const conversationMachine = setup({
           : executeTool(input.pending!, input.controller, signal),
     ),
     cancel: fromPromise(({ input }: { input: Conversation }) =>
-      cancelTurn(input.id, input.mode),
+      cancelTurn(input.id),
     ),
   },
   guards: {
@@ -352,6 +352,7 @@ export const conversationMachine = setup({
           sessionId: context.current.id,
           controller: context.controller,
           history: context.current.messages,
+          initialStill: context.current.motionTrace?.body.still === true,
         }),
         onSnapshot: {
           actions: [
@@ -376,14 +377,22 @@ export const conversationMachine = setup({
                       ]),
                     ].slice(-100)
                   : context.current.voiceCalls;
-                return { ...context.current, messages, title, voiceCalls };
+                const { body, facts, speechStarts } =
+                  event.snapshot.context.view;
+                return {
+                  ...context.current,
+                  messages,
+                  title,
+                  voiceCalls,
+                  motionTrace: { callId, body, facts, speechStarts },
+                };
               },
             }),
             "remember",
             "persist",
           ],
           description:
-            "Keep live transcript fragments and full backend replies visible and saved.",
+            "Save user/Live speech and internal engine timing separately; no controller prose enters chat.",
         },
         onDone: {
           target: "idle",
