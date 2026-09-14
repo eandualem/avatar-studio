@@ -198,7 +198,15 @@ export function createMotionController(): MotionController {
       return new Promise<MotionResult>((resolve) => {
         const started = performance.now();
         let previousTime = 0;
+        let firstFrameMs: number | null = null;
+        let frames = 0,
+          slowFrames = 0,
+          maxFrameGapMs = 0;
+        let totalApplyMs = 0,
+          maxApplyMs = 0;
         const reasons = new Set<string>();
+        if (duration > motion.waypoints.at(-1)!.time + 0.001)
+          reasons.add("Requested timing extended by movement speed limits");
         let frame = 0,
           done = false,
           constrained = duration > motion.waypoints.at(-1)!.time + 0.001;
@@ -215,6 +223,20 @@ export function createMotionController(): MotionController {
             constrained,
             duration: (performance.now() - started) / 1000,
             reasons: [...reasons],
+            timing: {
+              requestedSeconds: motion.waypoints.at(-1)!.time,
+              plannedSeconds: duration,
+              firstFrameMs,
+              settlingSeconds: Math.max(
+                0,
+                (performance.now() - started) / 1000 - duration,
+              ),
+              frames,
+              slowFrames,
+              maxFrameGapMs,
+              meanApplyMs: frames ? totalApplyMs / frames : 0,
+              maxApplyMs,
+            },
           });
         };
         const abort = () => finish("interrupted");
@@ -223,6 +245,11 @@ export function createMotionController(): MotionController {
         if (signal?.aborted) return abort();
         const tick = () => {
           const time = (performance.now() - started) / 1000;
+          firstFrameMs ??= time * 1000;
+          const gapMs = (time - previousTime) * 1000;
+          frames++;
+          if (gapMs > 50) slowFrames++;
+          maxFrameGapMs = Math.max(maxFrameGapMs, gapMs);
           const segment =
             segments.find((s) => time < s.start + s.duration) ??
             segments.at(-1)!;
@@ -230,10 +257,14 @@ export function createMotionController(): MotionController {
             1,
             Math.max(0, (time - segment.start) / segment.duration),
           );
+          const applyStart = performance.now();
           const applied = driver!.apply(
             interpolate(segment.from, segment.to, ease(t)),
             Math.min(0.033, Math.max(0.001, time - previousTime)),
           );
+          const applyMs = performance.now() - applyStart;
+          totalApplyMs += applyMs;
+          maxApplyMs = Math.max(maxApplyMs, applyMs);
           previousTime = time;
           current = applied.pose;
           constrained ||= applied.constrained;

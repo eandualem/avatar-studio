@@ -122,6 +122,17 @@ export type MotionResult = {
   constrained: boolean;
   duration: number;
   reasons?: string[];
+  timing?: {
+    requestedSeconds: number;
+    plannedSeconds: number;
+    firstFrameMs: number | null;
+    settlingSeconds: number;
+    frames: number;
+    slowFrames: number;
+    maxFrameGapMs: number;
+    meanApplyMs: number;
+    maxApplyMs: number;
+  };
 };
 export type RigDriver = {
   apply: (

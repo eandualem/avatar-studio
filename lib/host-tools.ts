@@ -1,6 +1,7 @@
 import { motionSchema, type MotionController } from "@/types/avatar";
 import type { Pending, ToolReceipt, Message } from "@/types/conversation";
 import { restPose } from "./motion";
+import movementSkill from "@/profiles/skills/charlie-motion/SKILL.md?raw";
 
 const vector = {
   type: "array",
@@ -170,6 +171,7 @@ export function hostContext(
           "Constrained arms and legs, palm roll/fingers, pelvis, torso, shoulders and head are supported. Knees/elbows hinge one way. Joint rates and wrist swing are limited. Simplified body collision, sole-floor and static support checks reject unsafe poses. No dynamic walking, jumping, physical balance or lip sync. Foot targets may need pelvis movement to be reachable.",
         motion_guidance:
           "For a shallow crouch keep feet fixed, lower pelvis.offset.y about -0.07, move pelvis.offset.z about -0.055, bend torso about 0.2. For a foot lift, first shift pelvis.offset.x about ±0.09 toward the foot staying planted, then raise the opposite ankle slowly. These are examples for composing targets, not gesture presets. Inspect results and use modest reaches.",
+        movement_skill: movementSkill,
       },
       state: { avatar_ready: controller.ready() },
     },

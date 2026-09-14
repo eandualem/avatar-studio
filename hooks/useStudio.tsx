@@ -5,6 +5,7 @@ import { appMachine } from "@/machines/appMachine";
 import { VoicePhase } from "@/types/voice";
 import type { ActorRefFrom } from "xstate";
 import type { voiceMachine } from "@/machines/voiceMachine";
+import type { Pending } from "@/types/conversation";
 
 export const StudioProvider = createActorContext(appMachine);
 export function useAvatar() {
@@ -75,6 +76,31 @@ export function useVoice() {
       play: () => actor?.send({ type: "PLAY" }),
       stopWork: () => actor?.send({ type: "CANCEL_WORK" }),
     },
+  };
+}
+export function useMotionLab() {
+  const actor = StudioProvider.useSelector((s) => s.context.conversation);
+  const speech = StudioProvider.useSelector((s) => s.context.speech);
+  const active = useSelector(actor, (s) => s.matches("dev"));
+  const running = useSelector(actor, (s) => s.matches({ dev: "running" }));
+  const pose = useSelector(actor, (s) => s.context.labPose);
+  const report = useSelector(actor, (s) => s.context.labReport);
+  return {
+    active,
+    running,
+    pose,
+    report,
+    open: () => {
+      speech.send({ type: "STOP" });
+      actor.send({ type: "OPEN_DEV" });
+    },
+    close: () => actor.send({ type: "CLOSE_DEV" }),
+    run: (tool_name: string, args: Pending["arguments"]) =>
+      actor.send({
+        type: "DEV_RUN",
+        call: { call_id: crypto.randomUUID(), tool_name, arguments: args },
+      }),
+    stop: () => actor.send({ type: "STOP" }),
   };
 }
 export function useSpeech(onTranscript: (text: string) => void) {
