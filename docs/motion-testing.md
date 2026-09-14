@@ -268,3 +268,38 @@ update inline. The separate Live prompt remains frozen until startup: revised
 `profiles/live-instructions.md` applies on the next coordinated runtime launch.
 The current audio prompt's old claim about having no animated lips does not gate
 host mouth playback. Preserve existing runtime processes and their histories.
+
+## Demo-pass verification, September 14
+
+The 70 tests cover every repeated reversal on the exported skeleton, drift,
+floor/collision and joint-rate bounds, old grounded behavior, exact cycle counts,
+interruption/reset, mouth attachment and blocked/paused/silent/ended audio.
+TypeScript, ESLint, skill validation and production build pass.
+
+Browser checks covered a 20-cycle run (19.60s, 1,176 frames, no gaps over 50ms),
+five clap cycles (7.43s, 446 frames, no gaps over 50ms), interruption, reset,
+preparation/cycle editing, mouth open/closed preview and 390×844 layout without
+horizontal overflow. These are local samples, not end-to-end latency benchmarks.
+The clap and run receipts retain wrist-swing limiting; their positional cycles
+pass the real-rig tests. Images below are actual avatar canvas captures: a held
+run-cycle extreme and the fully open mouth preview.
+
+![Charlie at one extreme of the running-in-place cycle](images/running-in-place.jpg)
+![Charlie with the white speaking mouth open](images/speaking-mouth.jpg)
+
+A new subscription-backed text session `9617addf-a24d-4fee-878b-39a92f8a3736`
+received “Run in place for four cycles, then return to standing.” Its single
+`move_avatar` call used animated/swing, repeat 4, preparation and finish. The
+saved receipt records 4 elapsed cycles, 5.20s planned / 5.213s actual, 313 frames,
+no slow frames, 27.5ms first frame and 1.09ms mean apply time. It returned to
+standing and the final response acknowledged the wrist restriction. No new paid
+Live call was allocated; mouth audio behavior was verified with synthetic remote
+media and real rendered preview, and awaits Elias's next real voice trial.
+
+7112's public instructions artifact PATCH returned HTTP 200, version 1,
+`effective_on_next_request:true`, `durable:false`; reread matched the revised
+profile after whitespace normalization. The original processes, subscription
+model/auth settings and histories were preserved. No automated review comments
+were present on PR #23 at final review. GitHub's application job could not start
+because of account billing/spending limits (job 103939877609); no required checks
+were reported. Local checks provide the available verification.
