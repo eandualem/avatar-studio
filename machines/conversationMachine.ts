@@ -3,6 +3,7 @@ import { sendTurn, cancelTurn } from "@/lib/runtime";
 import { executeTool } from "@/lib/host-tools";
 import { loadHistory, newConversation, saveHistory } from "@/lib/history";
 import { voiceMachine } from "./voiceMachine";
+import { runLabTool, type LabReport } from "@/lib/motion-lab";
 import type {
   Conversation,
   Pending,
@@ -21,12 +22,18 @@ type Context = {
   error: string;
   rounds: number;
   voiceHistory: Conversation["messages"];
+  labCall: Pending | null;
+  labReport: LabReport | null;
+  labPose: ReturnType<MotionController["pose"]>;
 };
 type Events =
   | { type: "SEND"; content: string }
   | { type: "NEW" }
   | { type: "SELECT"; id: string }
   | { type: "START_LIVE" }
+  | { type: "OPEN_DEV" }
+  | { type: "CLOSE_DEV" }
+  | { type: "DEV_RUN"; call: Pending }
   | { type: "STOP" };
 function incorporate(current: Conversation, reply: Reply): Conversation {
   if (!reply.content) return current;
@@ -52,6 +59,10 @@ export const conversationMachine = setup({
   },
   actors: {
     voice: voiceMachine,
+    lab: fromPromise(
+      ({ input, signal }: { input: Context; signal: AbortSignal }) =>
+        runLabTool(input.labCall!, input.controller, signal),
+    ),
     restore: fromPromise(async () => loadHistory()),
     request: fromPromise(
       ({ input, signal }: { input: Context; signal: AbortSignal }) =>
@@ -108,6 +119,9 @@ export const conversationMachine = setup({
     error: "",
     rounds: 0,
     voiceHistory: [],
+    labCall: null,
+    labReport: null,
+    labPose: input.controller.pose(),
   }),
   initial: "loading",
   states: {
@@ -132,6 +146,11 @@ export const conversationMachine = setup({
     idle: {
       description: "Ready for a new user message or conversation.",
       on: {
+        OPEN_DEV: {
+          target: "dev",
+          description:
+            "Reserve local movement for direct tests while conversation is idle.",
+        },
         START_LIVE: {
           target: "live",
           actions: [
@@ -202,6 +221,55 @@ export const conversationMachine = setup({
             }),
           ],
           description: "Open a saved conversation.",
+        },
+      },
+    },
+    dev: {
+      description:
+        "Exclusive local tool testing; no chat, live allocation or history changes.",
+      initial: "ready",
+      exit: "stopMotion",
+      on: {
+        CLOSE_DEV: {
+          target: "idle",
+          description: "Stop local work and restore conversation.",
+        },
+      },
+      states: {
+        ready: {
+          entry: assign({
+            labPose: ({ context }) => context.controller.pose(),
+          }),
+          on: {
+            DEV_RUN: {
+              guard: ({ context }) => context.controller.ready(),
+              target: "running",
+              actions: assign({
+                labCall: ({ event }) => event.call,
+                labReport: null,
+              }),
+            },
+          },
+        },
+        running: {
+          on: {
+            STOP: {
+              actions: "stopMotion",
+              description: "Interrupt and retain the actual execution receipt.",
+            },
+          },
+          invoke: {
+            src: "lab",
+            input: ({ context }) => context,
+            onDone: {
+              target: "ready",
+              actions: assign({ labReport: ({ event }) => event.output }),
+            },
+            onError: {
+              target: "ready",
+              actions: assign({ error: ({ event }) => String(event.error) }),
+            },
+          },
         },
       },
     },

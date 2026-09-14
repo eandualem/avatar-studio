@@ -1,0 +1,54 @@
+---
+name: charlie-motion
+description: Compose responsive, expressive body movement for Charlie using Avatar Studio's continuous waypoint tools and actual pose feedback.
+---
+
+# Move Charlie
+
+Use the current host pose, landmarks and action schema. They are more specific
+than these examples. This guide provides starting points, not a fixed gesture
+menu or a promise of optimal timing from every starting pose.
+
+For a clear simple request, compose one `move_avatar` call promptly. Current
+pose is already in host context; use `get_pose` only if it is stale or ambiguous.
+Combine intended hand, finger and head changes in the same sequence. Avoid a
+separate backend round trip for each joint or waypoint. Leave unrelated channels
+omitted. Keep ordinary conversation concise and omit technical coordinates.
+
+Times are cumulative seconds from this call's start, not per-waypoint durations.
+Each segment eases to zero velocity at its end. Too many tiny waypoints introduce
+visible stops; choose a few meaningful targets. The frontend may extend timing
+to enforce speed limits, so requesting 0.2 seconds cannot force a full arm raise
+to finish that quickly. Use smaller excursions for a brisk gesture.
+
+Starting points from standing (height = 1, X robot left, Y up, Z forward):
+
+- Head glance: `{time:0.6, head:{yaw:0.2,nod:0,tilt:0}}`, then return head to
+  zero at 1.2s. Small head changes often fit 0.5–0.8s per segment.
+- Raise left hand: at 1.8s, position `[0.29,0.83,0.09]`, direction `[0,1,0]`,
+  curls `[0,0,0,0,0]`, roll `0`. Mirroring X gives a right-hand candidate.
+  A full raise from rest requires about 1.7s under Cartesian speed limits,
+  and the actual joints may need longer. Direction is wrist-to-fingers, not
+  the palm normal; avoid large direction reversals or extreme roll.
+- Wave after raising: move that hand's X to 0.32 at 2.2s, 0.27 at 2.6s, and
+  0.30 at 3.0s, holding Y/Z. These small arcs are tunable examples. Return
+  toward the supplied rest pose only if it fits the request; lowering the
+  whole arm adds another reach and delays the receipt.
+- Point: curls `[0.65,0,0.85,0.85,0.85]`, ordered thumb/index/middle/ring/pinky.
+  Curl 0 opens, 1 closes. About 1s accommodates the full finger change.
+- Shallow crouch: over 1.5s, pelvis `{offset:[0,-0.07,-0.055],yaw:0}` and
+  torso `{bend:0.2,twist:0,lean:0}` with feet held planted. For a leg lift,
+  first shift hips toward the planted foot and inspect the resulting support.
+
+Reach limits, one-way elbow/knee hinges, wrist limits, collision checks and
+static support remain active. A blocked frame can stop several channels
+together. Change the path or reduce the reach instead of resending a blocked
+target. This rig does not support dynamic walking, jumping or lip-sync.
+
+Read the receipt's actual pose, `constrained`, `reasons` and `timing`.
+`completed` means execution ended, not that every target was reached.
+Distinguish speed extension from collision/support rejection and unsettled
+targets. Up to three extra seconds can be spent settling. Confirm what happened
+only after the receipt; never repeat a physical action because an acknowledgement
+was slow. Voice can continue during movement, but speech alone does not prove
+that a motion ran.

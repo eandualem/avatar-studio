@@ -21,7 +21,9 @@ import {
   useConversation,
   useSpeech,
   useVoice,
+  useMotionLab,
 } from "@/hooks/useStudio";
+import { MotionLab } from "./MotionLab";
 import { VoicePhase } from "@/types/voice";
 
 function Mark({ small = false }: { small?: boolean }) {
@@ -43,6 +45,7 @@ function Workspace() {
     } = useAvatar(),
     chat = useConversation(),
     voice = useVoice();
+  const lab = useMotionLab();
   const [draft, setDraft] = useState(""),
     [sidebar, setSidebar] = useState(false);
   const speech = useSpeech((text) =>
@@ -81,15 +84,19 @@ function Workspace() {
       ? "Avatar unavailable"
       : avatarState !== "ready"
         ? "Getting ready"
-        : live
-          ? voiceStatus
-          : listening
-            ? "Listening to you"
-            : chat.state === "moving"
-              ? "Expressing a thought"
-              : busy
-                ? "Thinking with you"
-                : "Ready to listen";
+        : lab.active
+          ? lab.running
+            ? "Testing movement"
+            : "Dev test ready"
+          : live
+            ? voiceStatus
+            : listening
+              ? "Listening to you"
+              : chat.state === "moving"
+                ? "Expressing a thought"
+                : busy
+                  ? "Thinking with you"
+                  : "Ready to listen";
   return (
     <main className="studio">
       <button
@@ -210,29 +217,49 @@ function Workspace() {
         <header className="conversation-heading">
           <div className="heading-row">
             <span className="eyebrow">YOUR SPACE TO EXPLORE</span>
-            {live ? (
-              <span className="live-heading">
-                <AudioLines size={18} /> Live conversation
-              </span>
-            ) : (
-              <button
-                className="live-start"
-                disabled={busy || listening || avatarState !== "ready"}
-                onClick={voice.actions.start}
-                aria-label="Start live conversation"
-              >
-                <AudioLines size={18} /> Talk live
-              </button>
-            )}
+            <div className="heading-actions">
+              <label className="dev-toggle">
+                <input
+                  type="checkbox"
+                  checked={lab.active}
+                  aria-controls="motion-lab"
+                  disabled={!lab.active && (busy || listening)}
+                  onChange={() => (lab.active ? lab.close() : lab.open())}
+                />
+                Dev test
+              </label>
+              {live ? (
+                <span className="live-heading">
+                  <AudioLines size={18} /> Live conversation
+                </span>
+              ) : (
+                <button
+                  className="live-start"
+                  disabled={busy || listening || avatarState !== "ready"}
+                  onClick={voice.actions.start}
+                  aria-label="Start live conversation"
+                >
+                  <AudioLines size={18} /> Talk live
+                </button>
+              )}
+            </div>
           </div>
-          <h2>Let’s think together.</h2>
-          <p>
-            Ideas, questions, rough drafts — you bring it,
-            <br className="desktop-break" /> we’ll figure it out together.
-          </p>
+          <h2>
+            {lab.active
+              ? "Explore how Charlie moves."
+              : "Let’s think together."}
+          </h2>
+          {!lab.active && (
+            <p>
+              Ideas, questions, rough drafts — you bring it,
+              <br className="desktop-break" /> we’ll figure it out together.
+            </p>
+          )}
         </header>
+        <MotionLab ready={avatarState === "ready"} />
         <div
           className="messages"
+          hidden={lab.active}
           role="log"
           aria-label="Messages"
           aria-live="polite"
@@ -298,7 +325,7 @@ function Workspace() {
           )}
           <div ref={bottom} />
         </div>
-        <div className="composer-area">
+        <div className="composer-area" hidden={lab.active}>
           {(chat.data.error ||
             speech.data.error ||
             voice.data.view?.warning) && (

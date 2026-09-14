@@ -5,7 +5,8 @@ import { Bone, Vector3 } from "three";
 import { createBodyRig } from "@/lib/body/rig";
 import { initializeContacts } from "@/lib/body/collision";
 import { WRIST_ROLL, WRIST_SWING } from "@/lib/body/wrist";
-import { ease, interpolate, restPose } from "@/lib/motion";
+import { ease, interpolate, planMotion, restPose } from "@/lib/motion";
+import { motionExamples } from "@/lib/motion-lab";
 import type { Pose } from "@/types/avatar";
 
 beforeAll(initializeContacts);
@@ -82,6 +83,42 @@ const near = (actual: number[], target: number[], tolerance = 0.008) =>
   ).toBeLessThan(tolerance);
 
 describe("constrained motion on the shipped skeleton", () => {
+  it.each(motionExamples)(
+    "executes the Dev test example $name at its planned timing",
+    async ({ motion }) => {
+      const b = await body();
+      const plan = planMotion(b.rig.apply(restPose()).pose, motion);
+      const duration = plan.at(-1)!.start + plan.at(-1)!.duration;
+      let actual = b.rig.apply(restPose());
+      for (let frame = 1; frame <= Math.ceil((duration + 3) * 60); frame++) {
+        const time = frame / 60;
+        const segment =
+          plan.find((s) => time < s.start + s.duration) ?? plan.at(-1)!;
+        actual = b.rig.apply(
+          interpolate(
+            segment.from,
+            segment.to,
+            ease(
+              Math.min(
+                1,
+                Math.max(0, (time - segment.start) / segment.duration),
+              ),
+            ),
+          ),
+          1 / 60,
+        );
+        const diagnostics = b.rig.diagnostics();
+        expect(diagnostics.collision).toBeNull();
+        expect(diagnostics.supported).toBe(true);
+        if (time >= duration && actual.settled !== false) break;
+      }
+      const target = plan.at(-1)!.to;
+      near(actual.pose.left.position, target.left.position, 0.015);
+      near(actual.pose.right.position, target.right.position, 0.015);
+      near(actual.pose.pelvis.offset, target.pelvis.offset, 0.015);
+      expect(actual.pose.head).toEqual(target.head);
+    },
+  );
   it("crouches with bent knees and flat planted boots, then stands again", async () => {
     const b = await body();
     const crouch = b.move((p) => {
