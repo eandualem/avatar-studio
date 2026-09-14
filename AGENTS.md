@@ -14,29 +14,35 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current: GPT-6 Astra Body with Fast requested (issue #36)
+## Accepted milestone: independent Voice/Body with Astra (September 14, 2026)
 
-Elias explicitly requested GPT-6 and Fast in the request after the Sol trial.
-**Body now uses `openai:gpt-6-astra`, low reasoning (4000 budget), with Codex Fast
-requested on isolated 7117.** Voice stays API-backed `gpt-live-1` on 7115; text
-stays Sol on 7112. Start with [the Astra trial and activation](docs/body-astra.md).
-This supersedes the earlier hold on changing models or routing after a returned
-standard tier. Preserve all older runtimes, including 7114/7116, and histories.
+Elias tested the real call, accepted the speed as reasonable and the architecture
+as a significant improvement, and asked to close the day with merged work and
+an updated handoff. Start with [acceptance and next-session work](docs/body-astra.md#acceptance-and-next-session-work).
+No optimization implementation is active at this handoff.
 
-Runtime PR #130 fixes Astra's effort mapping and passes 2,390 tests/all CI.
-Two actual subscription decisions took 6.814 s (same offline wave input) and
-7.3 s (renderer planning); the rendered wave completed and returned to standing.
-Earlier Sol samples were 11.497 s and 12.3 s respectively. This is a small trial,
-not a guaranteed speed multiplier. Both Astra responses requested `priority`
-and reported `default`: Fast is enabled in requests, but actual Fast processing
-is not verified. Keep that distinction in future reports. No real Live call or
-extra model retry was allocated. Elias owns the next real Voice comparison.
+**Voice:** API-backed `gpt-live-1` on 7115. **Body:** Codex subscription
+`openai:gpt-6-astra`, low reasoning (4000), Fast requested on 7117. **Text:** Sol
+on 7112. Preserve all old runtimes, including 7114/7116, and their histories.
+App PRs #33/#35/#37/#38/#39 and their implementation issues are delivered.
+PR #31 remains closed and unmerged as a superseded experiment; its branch is
+intentionally retained for reference, not pending delivery.
 
-Merged PR #37 supplies Voice/Body labels and Body timing. App implementation is
-unchanged from its 100-test/type/lint/build and desktop/mobile verification.
-[The earlier Sol evidence](docs/body-fast-mode.md) is retained as history. Its
-4.739 s server-message interval ended near stream initialization, not full
-planning completion; use the host's complete request timing for comparisons.
+The remaining user-reported gap is perceived simultaneity: Voice still seems to
+wait a little for motion. Independent scheduling does not guarantee aligned
+speech/movement onset. The next authorized optimization session should first
+measure that gap, then examine Body tool-call/context/output latency while
+preserving engine-confirmed facts and cancellation. Ultrafast provider processing
+is a future research lead, not a selected mode or verified account capability.
+
+The two Astra verification samples were 6.814 s and 7.3 s planning, compared with
+earlier Sol samples of 11.497 s and 12.3 s; these are not guaranteed multipliers.
+Both Astra responses requested `priority` and reported `default`: Fast is enabled
+in requests, but delivered Fast is not established. The new user acceptance is
+qualitative and does not change that earlier provider evidence. The runtime
+passes 2,390 tests/all CI; unchanged app implementation has 100-test/type/lint/build
+and desktop/mobile evidence. GitHub app Actions remains blocked by account
+billing. Details, response IDs, source paths and startup notes are in the handoff.
 
 ## Independent parallel body control (issue #32 / PR #33)
 
@@ -50,7 +56,8 @@ utterance and emits a movement tool or structured hold. The app owns revisions,
 exclusive execution, priority, cancellation and actual engine lifecycle facts.
 Implementation PR #33 passes 87 tests and all local checks. A real subscription
 body decision completed an eight-cycle run on the renderer; Elias later
-confirmed real Live works after the setup correction. Runtime PR #123 is merged; body stays on isolated 7114.
+confirmed real Live works after the setup correction. Runtime PR #123 merged with Body initially on 7114; the accepted configuration
+above supersedes that original route.
 Issue #34 / PR #35 fixes rejected Live setup handling; voice now uses isolated
 7115 with corrected runtime permissions. See [setup recovery](docs/live-setup-recovery.md)
 for diagnosis, verification and activation evidence. That fix covered 96 tests;
@@ -66,7 +73,7 @@ are superseded experiments; do not merge #31. Preserve its branch for reference.
 The detailed verification note records current implementation/deployment status;
 inspect the actual checkout and runtime health before further changes.
 
-## Delivered history (current direction above wins)
+## Delivered history (accepted configuration above wins)
 
 Live interaction was accepted in PR #13; issue #11 is closed. Elias resumed work
 on animation responsiveness and naturalness in issue #14. Its opt-in Dev test

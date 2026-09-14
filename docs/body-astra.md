@@ -107,8 +107,70 @@ Sol instances 7114 and 7116. Do not edit active runtime source or replace old
 processes. Raw evidence stays in `.tmp/astra-body-benchmark-results.json` and
 `.tmp/astra-browser-messages.json` in the continuing app checkout.
 
-Refresh the app and ask for another wave to compare the real Voice experience.
 Body starts a fresh runtime session for each admitted utterance, so old backend
-sessions do not need migration. The request setting, model and trial evidence
-fulfill the revised issue #36 scope; provider-tier selection remains an observed
-limitation, not proof that Fast processing was delivered.
+sessions do not need migration. App [PR #39](https://github.com/eandualem/avatar-studio/pull/39)
+merged as `25a57beeee7e01c0deb3c4ad9bbf18faf8ebedab`, and issue #36 is closed.
+The request setting, model and trial evidence fulfill its revised scope;
+provider-tier selection remains an observed limitation, not proof that Fast
+processing was delivered.
+
+## Acceptance and next-session work
+
+On September 14, 2026, Elias confirmed the real call worked well, called its
+speed reasonable and consistent with the trial estimate, and accepted the
+architecture as a significant improvement. This closes the earlier user-run
+Voice acceptance step. The acceptance is qualitative: no new agent-run model,
+microphone or provider trial was needed for this handoff, and the two recorded
+Astra responses above still report standard service.
+
+Elias also reported that Voice still appears to wait a little for the movement,
+so speech and motion do not feel simultaneous. Preserve that as an unresolved
+experience gap, not a claim that the two paths are serial or that a particular
+component is proven to block Voice. The app schedules Voice and Body independently,
+but completion of a Body decision and relevant spoken words need not coincide.
+No new timing trace from this final user trial was analyzed to apportion the gap.
+
+Future optimization direction, when Elias resumes implementation:
+
+1. Measure the perceived speech/motion gap with full host timings: transcript
+   readiness, Body request/complete return, first movement frame, audible Voice
+   onset and engine-context acknowledgment. Identify whether the next improvement
+   concerns planning delay, spoken phrasing or alignment. Server message creation
+   timestamps are not a complete planning stopwatch.
+2. Examine Body tool-call latency, prompt/context size, generated argument length
+   and the utterance-admission quiet period using bounded comparable trials.
+   These are candidate investigations, not measured bottlenecks or approved
+   protocol changes. Keep procedural flexibility, explicit-command priority,
+   cancellation, exactly-once execution and final receipt semantics. Voice's
+   movement claims must continue to use engine facts.
+3. Revisit substantially faster provider generation when documented and available
+   to the intended account/model/billing path. Do not change the accepted model,
+   requested tier or subscription policy during this documentation handoff.
+
+### Ultrafast research lead
+
+Elias recalled a limited-client offering faster than ordinary Fast mode, perhaps
+5–6 times normal generation speed. On this handoff date, the official
+[Responses request reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create)
+documents a separate access-controlled `ultrafast` service tier, currently for
+`gpt-5.6-sol`; an actually served response reports `service_tier=ultrafast`.
+This is a plausible match to the offering he meant, not a confirmed identification.
+The consulted reference does not establish the recalled speed multiplier, an
+availability date, this account's eligibility, Codex subscription support, or
+Astra availability. Recheck those facts before proposing a future trial.
+
+### Delivery and continuing state
+
+App delivery PRs #33, #35, #37, #38 and #39 are merged; the associated implementation
+issues are closed. The application had no open PRs or issues at the acceptance
+check. Superseded PR #31 is closed without merge, and `fix/live-action-dispatch`
+is deliberately preserved per the earlier handoff. Do not merge that experiment.
+Runtime dependencies and source commits are recorded in this document and the
+linked earlier notes; assistant-runtime owns its own shared deployment handoff.
+
+The acceptance update changes documentation only. The accepted app, models,
+runtime routes and processes remain intact. Main is the continuing application
+base; remove only this documentation task's branch/worktree after merge and
+prune its stale references. Preserve active runtime source checkouts and all
+in-memory histories. No performance work, provider experiment or polling loop
+is left running for the next session.
