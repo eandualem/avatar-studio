@@ -1,5 +1,9 @@
 # Codex subscription backend
 
+Current routing update: text remains on 7112; new Live conversations use 7113
+with proactive greeting instructions. See [expressive greetings](expressive-greetings.md)
+for activation, preserved history and the fresh-conversation boundary.
+
 Charlie has two model roles. GPT-Live handles audio; its delegated backend
 handles text reasoning, avatar tools and image inspection. A working OpenAI
 voice call does not select an OpenAI backend or authenticate a Codex subscription.
