@@ -35,3 +35,11 @@ coverage includes new requests after old replies, late finalization, stable IDs,
 continuations around user speech, full snapshots, replay and close. An isolated
 browser copy uses `tests/fixtures/live-order.ts` with the real message builder and
 Studio renderer; no real runtime connection or microphone is needed.
+
+The browser preview verified all three successive stages through the actual
+Studio renderer, including the continuation below the newer request. At 390×844,
+the same order remained visible without horizontal overflow. Live event delivery,
+streaming finalization and reconnect logic are covered by the VoiceClient tests;
+this preview did not allocate an actual Live call. GitHub application CI could not
+start because of account billing/spending limits (job 103967300844); no required
+checks or automated review comments were reported at final review.
