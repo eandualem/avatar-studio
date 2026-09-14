@@ -5,7 +5,13 @@ import { Bone, Vector3 } from "three";
 import { createBodyRig } from "@/lib/body/rig";
 import { initializeContacts } from "@/lib/body/collision";
 import { WRIST_ROLL, WRIST_SWING } from "@/lib/body/wrist";
-import { ease, interpolate, planMotion, restPose } from "@/lib/motion";
+import {
+  ease,
+  motionEase,
+  interpolate,
+  planMotion,
+  restPose,
+} from "@/lib/motion";
 import { motionExamples } from "@/lib/motion-lab";
 import type { Pose } from "@/types/avatar";
 
@@ -83,6 +89,63 @@ const near = (actual: number[], target: number[], tolerance = 0.008) =>
   ).toBeLessThan(tolerance);
 
 describe("constrained motion on the shipped skeleton", () => {
+  it.each(["Clap five times", "Run in place"])(
+    "tracks each reversal of %s without collision or cumulative drift",
+    async (name) => {
+      const b = await body(),
+        motion = motionExamples.find((m) => m.name === name)!.motion;
+      const plan = planMotion(b.rig.reset(), motion);
+      let last = b.rig.diagnostics(),
+        reversals = 0,
+        flight = false;
+      for (const segment of plan) {
+        const frames = Math.ceil(segment.duration * 60),
+          dt = segment.duration / frames;
+        let result;
+        for (let frame = 1; frame <= frames; frame++) {
+          result = b.rig.apply(
+            interpolate(
+              segment.from,
+              segment.to,
+              motionEase(frame / frames, segment.swing),
+            ),
+            dt,
+            motion.mode,
+          );
+          const actual = b.rig.diagnostics();
+          expect(
+            result.reasons?.some((r) => /intersect|floor|solver could/.test(r)),
+          ).not.toBe(true);
+          expect(actual.collision).toBeNull();
+          expect(
+            Math.min(...actual.soles.flat().map((p) => p[1])),
+          ).toBeGreaterThanOrEqual(-0.004);
+          actual.joints.forEach((j, i) => {
+            expect(j.value).toBeGreaterThanOrEqual(j.min - 1e-6);
+            expect(j.value).toBeLessThanOrEqual(j.max + 1e-6);
+            expect(
+              Math.abs(j.value - last.joints[i].value),
+            ).toBeLessThanOrEqual(8 * dt + 1e-6);
+          });
+          flight ||= !actual.supported;
+          last = actual;
+        }
+        if (segment.cycle !== null) {
+          reversals++;
+          for (const side of [
+            "left",
+            "right",
+            "leftFoot",
+            "rightFoot",
+          ] as const)
+            near(result!.pose[side].position, segment.to[side].position, 0.01);
+        }
+      }
+      expect(reversals).toBe(2 * motion.repeat!);
+      expect(flight).toBe(name === "Run in place");
+      expect(b.rig.diagnostics().supported).toBe(true);
+    },
+  );
   it("restores the initial pose and solver state after a blocked movement", async () => {
     const b = await body();
     const initial = b.rig.reset();
@@ -126,18 +189,24 @@ describe("constrained motion on the shipped skeleton", () => {
           interpolate(
             segment.from,
             segment.to,
-            ease(
+            motionEase(
               Math.min(
                 1,
                 Math.max(0, (time - segment.start) / segment.duration),
               ),
+              segment.swing,
             ),
           ),
           1 / 60,
+          motion.mode,
         );
         const diagnostics = b.rig.diagnostics();
         expect(diagnostics.collision).toBeNull();
-        expect(diagnostics.supported).toBe(true);
+        if (motion.mode !== "animated")
+          expect(diagnostics.supported).toBe(true);
+        expect(
+          Math.min(...diagnostics.soles.flat().map((p) => p[1])),
+        ).toBeGreaterThanOrEqual(-0.004);
         if (time >= duration && actual.settled !== false) break;
       }
       const target = plan.at(-1)!.to;

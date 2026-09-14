@@ -14,6 +14,81 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("motion composition", () => {
+  it("repeats only the cycle, resolves omitted channels once, and runs finish once", () => {
+    const motion = motionSchema.parse({
+      prepare: [{ time: 0.4, head: { yaw: 0.1, nod: 0 } }],
+      waypoints: [
+        { time: 0.2, head: { yaw: 0.2, nod: 0 } },
+        { time: 0.4, head: { yaw: 0.1, nod: 0 } },
+      ],
+      repeat: 5,
+      finish: [{ time: 0.4, head: { yaw: 0, nod: 0 } }],
+      interpolation: "swing",
+    });
+    const plan = planMotion(restPose(), motion);
+    expect(plan).toHaveLength(12);
+    expect(plan.map((s) => s.cycle)).toEqual([
+      null,
+      1,
+      1,
+      2,
+      2,
+      3,
+      3,
+      4,
+      4,
+      5,
+      5,
+      null,
+    ]);
+    for (let i = 1; i < plan.length; i++)
+      expect(plan[i].from).toEqual(plan[i - 1].to);
+    expect(plan.at(-1)!.to.head.yaw).toBe(0);
+    expect(
+      plan.every(
+        (s) => s.to.leftFoot.position[1] === restPose().leftFoot.position[1],
+      ),
+    ).toBe(true);
+    for (const invalid of [0, -1, 1.5, 21, Infinity])
+      expect(
+        motionSchema.safeParse({ ...motion, repeat: invalid }).success,
+      ).toBe(false);
+    expect(
+      motionSchema.safeParse({
+        ...motion,
+        prepare: [{ time: 1 }, { time: 0.5 }],
+      }).success,
+    ).toBe(false);
+  });
+  it("interrupts a later repetition without running finish or restarting, and reports elapsed cycles", async () => {
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
+    vi.stubGlobal("requestAnimationFrame", (cb: () => void) =>
+      setTimeout(cb, 16),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    const controller = createMotionController(),
+      apply = vi.fn((pose: Pose) => ({ pose, constrained: false }));
+    controller.attach({ apply, dispose: vi.fn(), reset: restPose });
+    const result = controller.execute({
+      waypoints: [{ time: 0.2 }, { time: 0.4 }],
+      repeat: 5,
+      finish: [{ time: 0.2, head: { yaw: 0.1, nod: 0 } }],
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.reset!();
+    expect(await result).toMatchObject({
+      status: "interrupted",
+      cycles: { requested: 5, elapsed: 2 },
+      timing: { requestedSeconds: 2.2 },
+    });
+    const calls = apply.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(apply.mock.calls).toHaveLength(calls);
+    expect(controller.pose()).toEqual(restPose());
+    await expect(
+      controller.execute({ waypoints: [{ time: 20 }], repeat: 3 }),
+    ).rejects.toThrow("too long");
+  });
   it("explains identical timing below the hand-direction and travel floors", () => {
     const waypoint = {
       left: {

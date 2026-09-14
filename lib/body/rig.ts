@@ -118,10 +118,15 @@ export function createBodyRig(model: Object3D) {
       const b = bone(chain.joints[i].spec.name);
       worldRotation(b, q.multiply(rest.get(b)!.world));
     });
-  const apply: RigDriver["apply"] = (requested, elapsed = 1 / 60) => {
+  const apply: RigDriver["apply"] = (
+    requested,
+    elapsed = 1 / 60,
+    mode = "grounded",
+  ) => {
     const dt = MathUtils.clamp(elapsed, 0.001, 1 / 30),
       reasons: string[] = [];
     let limited = false;
+    let solverFailure: string | null = null;
     const previousTransforms = [...bones.values()].map((b) => ({
       b,
       p: b.position.clone(),
@@ -138,11 +143,15 @@ export function createBodyRig(model: Object3D) {
       return value;
     };
     pose.pelvis.offset = pose.pelvis.offset.map((v, i) =>
-      step(current.pelvis.offset[i], v, 0.12),
+      step(current.pelvis.offset[i], v, mode === "animated" ? 0.5 : 0.12),
     ) as Pose["pelvis"]["offset"];
     pose.pelvis.yaw = step(current.pelvis.yaw, pose.pelvis.yaw, 0.5);
     for (const key of ["bend", "twist", "lean"] as const)
-      pose.torso[key] = step(current.torso[key], pose.torso[key], 0.5);
+      pose.torso[key] = step(
+        current.torso[key],
+        pose.torso[key],
+        mode === "animated" ? 1.5 : 0.5,
+      );
     for (const key of ["yaw", "nod", "tilt"] as const)
       pose.head[key] = step(current.head[key], pose.head[key], 0.8);
     for (const side of ["left", "right"] as const) {
@@ -220,7 +229,10 @@ export function createBodyRig(model: Object3D) {
         rotation,
         dt,
         !ready,
+        mode === "animated",
       );
+      if (solved.failed)
+        solverFailure = "Limb solver could not resolve this target";
       limited ||= solved.limited;
       copyChain(leg.chain);
       foot.position = position(leg.side + "Foot").toArray();
@@ -246,7 +258,10 @@ export function createBodyRig(model: Object3D) {
         null,
         dt,
         !ready,
+        mode === "animated",
       );
+      if (solved.failed)
+        solverFailure = "Limb solver could not resolve this target";
       limited ||= solved.limited;
       copyChain(arm.chain);
       hand.position = position(arm.side + "Hand").toArray();
@@ -337,11 +352,12 @@ export function createBodyRig(model: Object3D) {
     model.updateMatrixWorld(true);
     const solePoints = soles();
     const violation =
+      solverFailure ||
       bodyContacts(position) ||
       (Math.min(...solePoints.flat().map((p) => p.y)) < -0.004
         ? "foot would pass through the floor"
         : null) ||
-      (!supported(massCenter(), solePoints)
+      (mode === "grounded" && !supported(massCenter(), solePoints)
         ? "weight must remain over a planted foot"
         : null);
     if (ready && violation) {

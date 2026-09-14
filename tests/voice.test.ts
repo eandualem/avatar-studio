@@ -121,6 +121,7 @@ function controller(): MotionController {
     attach: vi.fn(),
     detach: vi.fn(),
     stop: vi.fn(),
+    setSpeechLevel: vi.fn(),
     execute: vi.fn(async () => completed),
   };
 }
@@ -216,7 +217,8 @@ describe("live audio lifecycle and delegated motion", () => {
       }),
     );
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
-    const client = new VoiceClient("session", controller());
+    const motion = controller();
+    const client = new VoiceClient("session", motion);
     await client.start();
     client.receive(event("status", { status: "active" }));
     expect(client.snapshot().speaking).toBe(false);
@@ -226,6 +228,11 @@ describe("live audio lifecycle and delegated motion", () => {
     peers[0].ontrack?.({ streams: [media] } as unknown as RTCTrackEvent);
     await flush();
     expect(client.snapshot().soundBlocked).toBe(true);
+    audioLevel = 155;
+    frame(1000);
+    expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
+    audioLevel = 128;
+    now.mockReturnValue(1200);
     client.playSound();
     await flush();
     expect(client.snapshot().soundBlocked).toBe(false);
@@ -237,7 +244,20 @@ describe("live audio lifecycle and delegated motion", () => {
     expect(client.snapshot()).toEqual(
       expect.objectContaining({ speaking: true, elapsed: 4 }),
     );
+    expect(vi.mocked(motion.setSpeechLevel!).mock.lastCall![0]).toBeGreaterThan(
+      0.5,
+    );
+    speakers[0].paused = true;
+    frame(5001);
+    expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
+    speakers[0].paused = false;
+    audioLevel = 128;
+    frame(5002);
+    expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
+    audioLevel = 155;
+    frame(5003);
     await client.end();
+    expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
     expect(speakers[0].pause).toHaveBeenCalledOnce();
     expect(speakers[0].srcObject).toBeNull();
   });

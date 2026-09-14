@@ -39,12 +39,13 @@ export function MotionLab({ ready }: { ready: boolean }) {
   );
   const [example, setExample] = useState(0);
   const [point, setPoint] = useState(0);
+  const [section, setSection] = useState("waypoints");
   const [copyStatus, setCopyStatus] = useState("");
   const preview = previewMotion(source, lab.pose);
   // Keep numeric fields editable even when a value is outside the tool limits.
   let editable: Record<string, unknown>[] = [];
   try {
-    const raw = JSON.parse(source).waypoints;
+    const raw = JSON.parse(source)[section];
     if (
       Array.isArray(raw) &&
       raw.length <= 16 &&
@@ -67,7 +68,7 @@ export function MotionLab({ ready }: { ready: boolean }) {
   const timing = result?.timing;
   const updateNumber = (path: string[], value: number) => {
     const next = JSON.parse(source);
-    let target = next.waypoints[point];
+    let target = next[section][point];
     for (const part of path.slice(0, -1)) target = target[part];
     target[path.at(-1)!] = value;
     setSource(JSON.stringify(next, null, 2));
@@ -91,6 +92,7 @@ export function MotionLab({ ready }: { ready: boolean }) {
           onChange={(event) => {
             const index = Number(event.target.value);
             setExample(index);
+            setSection("waypoints");
             setPoint(0);
             setSource(JSON.stringify(motionExamples[index].motion, null, 2));
           }}
@@ -109,6 +111,53 @@ export function MotionLab({ ready }: { ready: boolean }) {
         Positions are absolute; pelvis offset is relative. Angles are radians.
         Omitted channels hold their targets.
       </div>
+      {preview.motion && (
+        <div className="lab-fields">
+          <label>
+            Repeat count
+            <input
+              type="number"
+              min={1}
+              max={20}
+              step={1}
+              value={preview.motion.repeat ?? 1}
+              disabled={lab.running}
+              onChange={(event) => {
+                if (!Number.isFinite(event.target.valueAsNumber)) return;
+                setSource(
+                  JSON.stringify(
+                    {
+                      ...JSON.parse(source),
+                      repeat: event.target.valueAsNumber,
+                    },
+                    null,
+                    2,
+                  ),
+                );
+              }}
+            />
+          </label>
+          <label>
+            Edit sequence
+            <select
+              value={section}
+              disabled={lab.running}
+              onChange={(event) => {
+                setSection(event.target.value);
+                setPoint(0);
+              }}
+            >
+              <option value="waypoints">Repeated cycle</option>
+              {preview.motion.prepare && (
+                <option value="prepare">Preparation (once)</option>
+              )}
+              {preview.motion.finish && (
+                <option value="finish">Finish (once)</option>
+              )}
+            </select>
+          </label>
+        </div>
+      )}
       {editable.length > 0 && (
         <>
           <label className="lab-label">
@@ -155,6 +204,7 @@ export function MotionLab({ ready }: { ready: boolean }) {
           disabled={lab.running}
           onChange={(event) => {
             setSource(event.target.value);
+            setSection("waypoints");
             setPoint(0);
           }}
         />
@@ -239,6 +289,22 @@ export function MotionLab({ ready }: { ready: boolean }) {
           Capture avatar
         </button>
       </div>
+      <label className="lab-label">
+        Mouth opening (preview)
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={lab.mouth}
+          disabled={!ready}
+          onChange={(event) => lab.setMouth(event.target.valueAsNumber)}
+        />
+      </label>
+      <p className="lab-hint">
+        Preview only. During a live call, Charlie’s outgoing audio opens the
+        mouth automatically.
+      </p>
       <p className="lab-status" role="status">
         {!ready
           ? "Waiting for Charlie to load."

@@ -96,11 +96,20 @@ export class LimbChain {
     rotation: Quaternion | null,
     dt: number,
     immediate = false,
+    animated = false,
   ) {
     this.goal.setPosition(...position.toArray());
     if (rotation) this.goal.setQuaternion(...rotation.toArray());
     const previous = this.snapshot();
-    const status = this.solver.solve();
+    let status;
+    try {
+      status = this.solver.solve();
+    } catch {
+      // The upstream solver can fail at singular, fully limited chains.
+      // Restore the accepted values; the rig rolls back the whole frame.
+      this.restore(previous);
+      return { status: [], limited: false, failed: true };
+    }
     let limited = false;
     for (const [i, entry] of this.joints.entries()) {
       const { joint, spec } = entry;
@@ -116,11 +125,15 @@ export class LimbChain {
           return wanted;
         }
         const delta = wanted - previous.values[i][k];
-        const desiredVelocity = MathUtils.clamp(delta / dt, -2.1, 2.1);
+        const desiredVelocity = MathUtils.clamp(
+          delta / dt,
+          animated ? -8 : -2.1,
+          animated ? 8 : 2.1,
+        );
         const velocity = MathUtils.clamp(
           desiredVelocity,
-          previous.velocities[i][k] - 10 * dt,
-          previous.velocities[i][k] + 10 * dt,
+          previous.velocities[i][k] - (animated ? 40 : 10) * dt,
+          previous.velocities[i][k] + (animated ? 40 : 10) * dt,
         );
         const step =
           Math.sign(delta) *

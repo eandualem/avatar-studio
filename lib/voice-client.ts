@@ -12,6 +12,7 @@ import {
 import { executeTool, hostContext } from "./host-tools";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { spokenMessages } from "./voice-transcript";
+import { speechOpening } from "./speech-mouth";
 import { VoiceReplies } from "./voice-replies";
 
 const abortError = () =>
@@ -254,6 +255,15 @@ export class VoiceClient {
         samples.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) /
           samples.length,
       );
+      this.controller.setSpeechLevel?.(
+        speechOpening(
+          rms,
+          !this.view.soundBlocked &&
+            !this.audio!.paused &&
+            !this.audio!.muted &&
+            !this.view.remoteClosed,
+        ),
+      );
       const now = performance.now();
       if (rms > 0.015) this.lastSound = now;
       const speaking =
@@ -390,6 +400,7 @@ export class VoiceClient {
   private applyStatus(data: Record<string, unknown>) {
     if (data.status === "closed" || data.status === "interrupted") {
       this.pendingAction = undefined;
+      this.controller.setSpeechLevel?.(0);
       this.abortActions();
       this.update({
         remoteClosed: true,
@@ -509,6 +520,7 @@ export class VoiceClient {
   }
   private leave = () => {
     this.ending = true;
+    this.controller.setSpeechLevel?.(0);
     this.abortActions();
     if (this.callId)
       void fetch(`/api/voice/calls/${this.callId}/close`, {
@@ -520,6 +532,7 @@ export class VoiceClient {
   end = (): Promise<void> => {
     if (this.closing) return this.closing;
     this.ending = true;
+    this.controller.setSpeechLevel?.(0);
     this.abortActions();
     this.media?.getAudioTracks().forEach((track) => {
       track.enabled = false;
@@ -558,6 +571,7 @@ export class VoiceClient {
   private disposeMedia() {
     if (this.disposed) return;
     this.disposed = true;
+    this.controller.setSpeechLevel?.(0);
     window.removeEventListener("pagehide", this.leave);
     clearTimeout(this.disconnectTimer);
     cancelAnimationFrame(this.animation);

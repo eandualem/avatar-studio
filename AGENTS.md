@@ -48,6 +48,20 @@ conversations on the subscription instance. Setup, restart steps and evidence
 are in `docs/codex-subscription.md`. GPT-Live audio remains API-backed; no new
 paid live trial was started. Never substitute an API key for the Codex login.
 
+## Demo animation pass (issue #22 / PR #23)
+
+Elias resumed running/animation and authorized repeatable procedural sequences
+plus a simple speaking mouth. This supersedes the earlier walking/facial deferral
+for running **in place** and amplitude mouth animation only. Preserve the body,
+layout and subscription setup. New tool fields prepare/waypoints/repeat/finish
+compose bounded cycles; animated mode permits flight with retained floor,
+collision and joint limits. Grounded mode remains the default. Details and
+runtime prompt activation notes are in `docs/motion-testing.md`. The 70 tests, type/lint/build and browser checks pass; a subscription-backed
+four-cycle run completed and returned to standing. Backend instructions artifact
+version 1 is active on 7112 without restarting. Live mouth audio behavior has
+synthetic-media and rendered-preview coverage; Elias’s next real voice trial is
+the remaining subjective acceptance. No new paid Live call was allocated.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction

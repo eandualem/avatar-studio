@@ -85,11 +85,14 @@ export function useMotionLab() {
   const running = useSelector(actor, (s) => s.matches({ dev: "running" }));
   const pose = useSelector(actor, (s) => s.context.labPose);
   const report = useSelector(actor, (s) => s.context.labReport);
+  const mouth = useSelector(actor, (s) => s.context.labMouth);
   return {
     active,
     running,
     pose,
     report,
+    mouth,
+    setMouth: (level: number) => actor.send({ type: "DEV_MOUTH", level }),
     open: () => {
       speech.send({ type: "STOP" });
       actor.send({ type: "OPEN_DEV" });

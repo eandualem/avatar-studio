@@ -25,8 +25,8 @@ what the image shows. The image is the current avatar camera, never the chat or
 desktop; a frontal view can foreshorten a forward kick. In a voice conversation
 this inspection happens in the delegated backend, not directly in the voice model.
 
-Times are cumulative seconds from this call's start, not per-waypoint durations.
-Each segment eases to zero velocity at its end. Too many tiny waypoints introduce
+Times increase independently within prepare, waypoints and finish, not per-waypoint durations. prepare runs once, waypoints runs repeat times (1–20 total, default 1), finish runs once. The entire speed-adjusted plan must fit 40 seconds. Never emulate repeats with repeated tool calls.
+Default ease settles at each waypoint. interpolation:"swing" uses sinusoidal reversals for rhythmic back-and-forth cycles, avoiding the long dwell of quintic easing. Too many tiny waypoints introduce
 visible stops; choose a few meaningful targets. The frontend may extend timing
 to enforce speed limits, so requesting 0.2 seconds cannot force a full arm raise
 to finish that quickly. Use smaller excursions for a brisk gesture.
@@ -62,9 +62,9 @@ Starting points from standing (height = 1, X robot left, Y up, Z forward):
   inspect the actual result and fresh image before describing its quality.
 
 Reach limits, one-way elbow/knee hinges, wrist limits, collision checks and
-static support remain active. A blocked frame can stop several channels
+floor checks remain active. Static support is enforced only in default mode:"grounded". A blocked frame can stop several channels
 together. Change the path or reduce the reach instead of resending a blocked
-target. This rig does not support dynamic walking, jumping or lip-sync.
+target. For running in place use mode:"animated": it allows unsupported/flight poses and faster bounded joint rates. It does not simulate gravity or move through the scene. Live audio drives a simple white mouth automatically, not phoneme lip-sync.
 
 Read the receipt's actual pose, `constrained`, `reasons` and `timing`.
 `completed` means execution ended, not that every target was reached.
@@ -77,3 +77,36 @@ seconds can be spent settling. Confirm what happened
 only after the receipt; never repeat a physical action because an acknowledgement
 was slow. Voice can continue during movement, but speech alone does not prove
 that a motion ran.
+
+
+## Repeated movement
+
+Use one `move_avatar` call. `prepare` moves into the starting pose once;
+`waypoints` describes a complete cycle; `repeat:5` means five cycles including
+the first; `finish` optionally returns to standing once. All three arrays accept
+up to 16 waypoints with their own increasing times. Omitted cycle targets resolve
+once from the prepared pose. End the cycle at its starting pose for a smooth
+seam. `interpolation:"swing"` is suited to two opposing extremes and reversals;
+it is not a general spline through arbitrary corners. Stop/cancellation holds the
+actual pose and skips finish; use animated mode to lower from a flight pose, or
+Dev test Reset pose. Receipts count elapsed cycles, not verified successful claps.
+
+Tested examples from standing, using `mode:"animated"` and `interpolation:"swing"`:
+
+- Five claps: prepare at 1s with wrists `[±0.17,0.6,0.2]`, directions `[0,1,0]`,
+  curls all zero. Cycle: wrists `[±0.075,0.6,0.2]` at 0.35s and back to
+  `[±0.17,0.6,0.2]` at 0.7s. `repeat:5`; finish with supplied rest_pose at 1s.
+  This is a visible closing/opening gesture with clearance, not simulated impact.
+- Running in place: prepare at 0.8s with pelvis `{offset:[0,-0.025,0],yaw:0}`,
+  torso `{bend:0.12,twist:0,lean:0}`, left ankle `[0.105,0.25,0.15]`, right ankle
+  `[-0.105,0.095,-0.06]` (both yaw/pitch zero), left wrist `[0.2,0.59,0.02]`,
+  right wrist `[-0.2,0.65,0.23]`, both hands curls all 0.7. Cycle at 0.45s:
+  left ankle `[0.105,0.095,-0.06]`, right ankle `[-0.105,0.25,0.15]`, left wrist
+  `[0.2,0.65,0.23]`, right wrist `[-0.2,0.59,0.02]`. At 0.9s return all four to
+  the prepared targets. `repeat:6`; finish with supplied rest_pose at 0.8s.
+  Each cycle contains both strides; feet and opposite arms alternate. This is
+  stylized in-place motion, without planted-foot locking or root travel.
+
+These examples are editable targets, not built-in gesture names. Keep existing
+head/gaze when appropriate. Inspect actual results and fresh images; wrist swing
+can be clipped even when positions follow the cycle.

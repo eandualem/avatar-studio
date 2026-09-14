@@ -323,3 +323,37 @@ it("measures frame scheduling, speed extension and solver work in physical recei
   expect(receipt.timing!.slowFrames).toBe(receipt.timing!.frames);
   expect(receipt.timing!.settlingSeconds).toBeLessThan(0.061);
 });
+
+it("keeps mouth preview during local capture, then closes it when leaving Dev test", async () => {
+  const controller = createMotionController(),
+    levels: number[] = [];
+  controller.attach({
+    apply: (pose) => ({ pose, constrained: false }),
+    dispose: vi.fn(),
+    setSpeechLevel: (level) => levels.push(level),
+    capture: () => ({
+      dataUri: "data:image/jpeg;base64,eA==",
+      width: 1,
+      height: 1,
+      capturedAt: new Date().toISOString(),
+    }),
+  });
+  const actor = createActor(conversationMachine, {
+    input: { controller },
+  }).start();
+  await waitFor(actor, (s) => s.matches("idle"));
+  actor.send({ type: "OPEN_DEV" });
+  actor.send({ type: "DEV_MOUTH", level: 1 });
+  expect(levels.at(-1)).toBe(1);
+  actor.send({
+    type: "DEV_RUN",
+    call: { tool_name: "capture_avatar", call_id: "mouth", arguments: {} },
+  });
+  await waitFor(actor, (s) => s.matches({ dev: "ready" }));
+  expect(actor.getSnapshot().context.labMouth).toBe(1);
+  expect(levels.at(-1)).toBe(1);
+  actor.send({ type: "CLOSE_DEV" });
+  expect(actor.getSnapshot().context.labMouth).toBe(0);
+  expect(levels.at(-1)).toBe(0);
+  actor.stop();
+});
