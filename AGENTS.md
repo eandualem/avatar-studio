@@ -62,6 +62,16 @@ version 1 is active on 7112 without restarting. Live mouth audio behavior has
 synthetic-media and rendered-preview coverage; Elias’s next real voice trial is
 the remaining subjective acceptance. No new paid Live call was allocated.
 
+## Live transcript ordering (issue #24)
+
+Elias's demo exposed older full responses appearing below newer user utterances.
+The app now interleaves full responses at their first visible transcript position,
+keeps IDs stable during finalization, and separates continuations after new user
+speech. Snapshot/replay regression tests pass. New calls use the fix after app
+refresh; old saved order is preserved because it cannot be reliably reconstructed.
+See `docs/live-message-order.md` for the contract, evidence and recovery limits.
+No runtime restart, provider change or new paid voice call was needed.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction

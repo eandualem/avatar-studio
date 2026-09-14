@@ -302,7 +302,9 @@ function Workspace() {
                   {message.source === "voice"
                     ? " · Live transcript"
                     : message.source === "backend"
-                      ? " · Full response"
+                      ? message.orderUncertain
+                        ? " · Recovered response · original order unavailable"
+                        : " · Full response"
                       : ""}
                 </span>
                 <div className="bubble">{message.content}</div>

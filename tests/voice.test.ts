@@ -819,7 +819,7 @@ it("retains one assistant message across streamed host continuations", async () 
   });
   expect(client.snapshot().messages).toEqual([
     {
-      id: `backend:${callId}:d1:reply-1`,
+      id: `backend:${callId}:d1:reply:0`,
       role: "assistant",
       source: "backend",
       content: "Raising my hand.\n\nDone.",
@@ -900,3 +900,176 @@ it.each(["pending_host", "cancelled"])(
     }
   },
 );
+
+it("interleaves full replies with speech and keeps their slots through late finalization and snapshots", async () => {
+  const client = new VoiceClient("session", controller());
+  await client.start();
+  const first = {
+    role: "user",
+    delta: "Please clap.",
+    start_ms: 0,
+    end_ms: 500,
+  };
+  const second = {
+    role: "user",
+    delta: "Now run.",
+    start_ms: 2000,
+    end_ms: 2400,
+  };
+  client.receive(event("transcript", first), 1);
+  client.receive(
+    event("backend", {
+      delegation_id: "clap",
+      event: { type: "text_delta", content: "Clapping" },
+    }),
+    2,
+  );
+  const replyId = client.snapshot().messages[1].id;
+  client.receive(event("transcript", second), 3);
+  client.receive(
+    event("backend", {
+      delegation_id: "clap",
+      event: {
+        type: "final_response",
+        content: "Clapped five times.",
+        message_id: "final-id",
+      },
+    }),
+    4,
+  );
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Please clap.",
+    "Clapped five times.",
+    "Now run.",
+  ]);
+  expect(client.snapshot().messages[1].id).toBe(replyId);
+  client.receive(
+    event("snapshot", {
+      cursor: 5,
+      status: "active",
+      transcript: [first, second],
+      delegations: {},
+    }),
+    5,
+  );
+  client.receive(
+    event("backend", {
+      delegation_id: "run",
+      event: { type: "final_response", content: "Running." },
+    }),
+    6,
+  );
+  client.receive(
+    event("transcript", {
+      role: "user",
+      delta: "And stop.",
+      start_ms: 5000,
+      end_ms: 5400,
+    }),
+    7,
+  );
+  // A duplicate replay must neither duplicate the answer nor move it below the new request.
+  client.receive(
+    event("backend", {
+      delegation_id: "run",
+      event: { type: "final_response", content: "Running." },
+    }),
+    6,
+  );
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Please clap.",
+    "Clapped five times.",
+    "Now run.",
+    "Running.",
+    "And stop.",
+  ]);
+  await client.end();
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Please clap.",
+    "Clapped five times.",
+    "Now run.",
+    "Running.",
+    "And stop.",
+  ]);
+});
+
+it("places a new backend continuation after intervening user speech instead of extending the earlier bubble", async () => {
+  const client = new VoiceClient("session", controller());
+  await client.start();
+  const backend = (inner: Record<string, unknown>) =>
+    client.receive(event("backend", { delegation_id: "d1", event: inner }));
+  client.receive(
+    event("transcript", { role: "user", delta: "Raise your hand." }),
+  );
+  backend({ type: "text_delta", content: "Raising my hand." });
+  backend({
+    type: "final_response",
+    content: null,
+    pending_tool_call: pending,
+  });
+  client.receive(event("transcript", { role: "assistant", delta: "Okay." }));
+  client.receive(event("transcript", { role: "user", delta: "Keep going." }));
+  backend({ type: "text_delta", content: "Done" });
+  const continuationId = client.snapshot().messages.at(-1)!.id;
+  backend({
+    type: "final_response",
+    content: "Done.",
+    message_id: "same-model-message",
+  });
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Raise your hand.",
+    "Raising my hand.",
+    "Okay.",
+    "Keep going.",
+    "Done.",
+  ]);
+  expect(client.snapshot().messages.at(-1)!.id).toBe(continuationId);
+  await client.end();
+});
+
+it("keeps known reply anchors when older backend events arrive after a REST snapshot", async () => {
+  const client = new VoiceClient("session", controller());
+  await client.start();
+  const first = { role: "user", delta: "Clap." },
+    next = { role: "user", delta: "Now run." };
+  client.receive(event("transcript", first), 1);
+  client.receive(
+    event("backend", {
+      delegation_id: "d1",
+      event: { type: "final_response", content: "Starting." },
+    }),
+    2,
+  );
+  client.receive(
+    event("snapshot", {
+      cursor: 10,
+      status: "active",
+      transcript: [first, next],
+      delegations: {},
+    }),
+  );
+  client.receive(
+    event("backend", {
+      delegation_id: "d1",
+      event: { type: "text_delta", content: "Done." },
+    }),
+    3,
+  );
+  expect(client.snapshot().messages.map((m) => m.content)).toEqual([
+    "Clap.",
+    "Starting.\n\nDone.",
+    "Now run.",
+  ]);
+  client.receive(
+    event("backend", {
+      delegation_id: "missed",
+      event: { type: "final_response", content: "Recovered old text." },
+    }),
+    4,
+  );
+  expect(client.snapshot().messages.at(-1)).toMatchObject({
+    content: "Recovered old text.",
+    orderUncertain: true,
+  });
+  await client.end();
+});
