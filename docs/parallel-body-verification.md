@@ -50,12 +50,13 @@ retained on `fix/live-action-dispatch`; it is not part of this merge.
 
 ## Runtime activation
 
-Current routing is text **7112**, Body **7114**, Voice **7115**. Elias confirmed
-real Voice works. The later [Body Fast trial](body-fast-mode.md) did not confirm
-Fast delivery, so routing stays here; that note also covers current timing UI.
-See [Live setup recovery](live-setup-recovery.md) for the follow-up
-diagnosis and activation evidence. The original activation below is preserved
-as historical evidence; its malformed voice request was found in Elias's trial.
+Current routing is text **7112**, Body **7117**, Voice **7115**. Elias confirmed
+real Voice works and then requested GPT-6 Astra with Fast for Body. See
+[the current Astra trial](body-astra.md) for model, requested/actual tier, timings
+and preserved runtime history. The [earlier Sol Fast trial](body-fast-mode.md)
+and [Live setup recovery](live-setup-recovery.md) retain their historical evidence.
+The original activation below is historical; its malformed Voice request was
+found in Elias's trial and corrected before the Astra migration.
 
 The assistant-runtime agent activated isolated **7114** from merged `6e10c33`
 on September 14, 2026. Source: `/tmp/assistant-runtime-parallel-body`; private

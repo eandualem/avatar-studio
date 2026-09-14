@@ -1,11 +1,15 @@
-# Voice and Body speed (issue #36)
+# Voice and Body speed: earlier Sol trial (issue #36)
+
+**Superseded configuration:** Elias later requested GPT-6 Astra with Fast in the
+request. See [the current Astra trial and activation](body-astra.md). The Sol
+configuration, measurements and blocked decision below are historical evidence.
 
 Use **Voice** for Charlie’s spoken conversation and **Body** for independent
 movement decisions. Voice uses API-backed `gpt-live-1`; Body uses
 `openai:gpt-5.6-sol`, low reasoning (`thinking_budget=4000`), through Elias’s
 Codex subscription with API fallback disabled. Text chat remains separate.
 
-**Current routing:** Voice 7115, Body 7114, text 7112. Fast request support is
+**Routing during this trial:** Voice 7115, Body 7114, text 7112. Fast request support is
 implemented on isolated 7116, but its first real response reported `default`,
 so the app was not switched. Issue #36 remains open for verified Fast delivery.
 
@@ -142,10 +146,9 @@ All 100 tests, TypeScript, lint, production build and desktop/mobile checks pass
 GitHub's application job could not start because account billing/spending limits
 blocked it; matching checks pass locally and main has no required branch gates.
 
-**Unfinished:** verified Fast activation and a demonstrated Body speedup. Issue
-#36 stays open. Root `.env.local` and `.env.example` retain Body 7114, Voice 7115
-and text 7112. Refresh the app to see timing feedback; no new Voice session was
-allocated to deliver it. The next step is a supported explanation or remedy for
-the returned standard tier before any further bounded subscription test. Do not
-silently change the model, use API billing, spoof client headers, or label
-configured Fast as delivered Fast.
+At the end of this Sol trial, verified Fast activation and a demonstrated Body
+speedup remained unfinished, so issue #36 stayed open and routing retained Body
+7114, Voice 7115 and text 7112. The next step then was an explanation of the
+returned standard tier. Elias subsequently requested Astra with Fast enabled in
+the request and further trials; [the Astra handoff](body-astra.md) owns the
+current direction and activation. Never label configured Fast as delivered Fast.
