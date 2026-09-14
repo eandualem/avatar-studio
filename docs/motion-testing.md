@@ -208,3 +208,63 @@ production build. Browser checks confirm identical 1.96s plans for 0.6s and 0.2s
 hand raises, fresh canvas images, a clearer diagonal kick, and controls/capture
 without horizontal overflow at 390×844. The committed image is from the actual
 browser renderer with the final example targets.
+
+## Repeated cycles and running in place (issue #22)
+
+`move_avatar` now accepts `prepare`, `waypoints`, `repeat`, `finish`, `mode` and
+`interpolation`. `repeat` is the **total** cycle count (1–20, default 1). Preparation
+and finish run once. Times increase independently within each array, starting
+from zero; each array allows 1–16 points and a last requested time up to 20s.
+The full plan, including speed extensions and all repeats, must fit 40s, plus up
+to 3s settling. There is no unlimited background loop. Stop, cancellation, reset,
+a newer action and closing Dev test interrupt the entire sequence; finish is
+skipped on interruption. The next action starts from the actual held pose.
+
+Cycle targets omitted from input are resolved once from the prepared pose.
+They do not accumulate changes across repetitions. End a cycle at its starting
+pose for a clean seam. `interpolation:"swing"` uses cosine half-waves for rhythmic
+reversals, with peak speed factor π/2; the default quintic remains unchanged.
+Swing is suited to opposing extremes, not a general path spline. It does not
+promise continuous velocity/acceleration through arbitrary unequal segments.
+Receipts include `cycles.requested` and `cycles.elapsed`; elapsed counts fully
+elapsed cycle plans, not verified contact events or successfully reached targets.
+
+Default `mode:"grounded"` preserves standing support and existing rates.
+`mode:"animated"` permits unsupported/flight poses and increases bounded limb
+rates: joints 8 rad/s with 40 rad/s² velocity slew (grounded: 2.1 and 10), hand/foot
+travel 1.2 height/s, foot angles 2 rad/s, pelvis translation 0.5 height/s and torso
+1.5 rad/s. Other channel limits remain unchanged. Bone lengths, joint ranges,
+wrist restrictions, simplified collision and sole-floor rejection remain active.
+An upstream singular-chain exception now restores the previous frame and reports
+an unresolved target, rather than leaving the motion promise hanging.
+
+This is procedural animation without gravity, momentum, root travel or foot
+locking. Running in place is stylized; flight is permitted, not physically
+simulated. Grounded actions cannot necessarily recover from an interrupted flight
+pose: lower both feet with animated mode or use Dev test Reset pose.
+
+Dev test includes **Clap five times**, **Run in place**, a repeat-count field and
+an editor selector for preparation/cycle/finish. Both examples prepare once,
+repeat a complete cycle and return to standing. The run uses opposite arms and
+legs; one cycle includes both alternating steps. The clap closes/opens the hands
+with clearance; it does not simulate impact or make a clapping sound. All targets
+remain editable and are exposed through the existing generic tool, not named
+agent gestures. The maintained host movement skill includes the tested examples.
+
+## Speaking mouth
+
+A small ivory opening overlays the etched smile and follows the Head bone. The
+approved exported model is unchanged. Outgoing remote audio amplitude drives
+opening with 35ms attack/75ms release smoothing, independently of body actions.
+Silence, blocked/paused/muted playback and call shutdown close it. Microphone
+input and text responses do not drive it; this is not phoneme lip-sync.
+Dev test's **Mouth opening (preview)** slider previews it without audio or a
+provider call. Leaving Dev test closes the preview before live voice takes over.
+
+Backend profile instructions can be updated through the public versioned
+instructions artifact without restarting 7112, affecting subsequent backend
+requests in existing and new sessions. Host schemas and movement skill also
+update inline. The separate Live prompt remains frozen until startup: revised
+`profiles/live-instructions.md` applies on the next coordinated runtime launch.
+The current audio prompt's old claim about having no animated lips does not gate
+host mouth playback. Preserve existing runtime processes and their histories.

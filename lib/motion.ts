@@ -6,6 +6,7 @@ import type {
   Pose,
   RigDriver,
   Vec3,
+  MotionMode,
 } from "@/types/avatar";
 
 export const restPose = (): Pose => ({
@@ -80,11 +81,23 @@ export function interpolate(a: Pose, b: Pose, t: number): Pose {
   return pose;
 }
 
-export function planMotion(start: Pose, motion: Motion) {
+export const motionEase = (t: number, swing = false) =>
+  swing ? (1 - Math.cos(Math.PI * t)) / 2 : ease(t);
+export const requestedSeconds = (motion: Motion) =>
+  (motion.prepare?.at(-1)?.time ?? 0) +
+  motion.waypoints.at(-1)!.time * (motion.repeat ?? 1) +
+  (motion.finish?.at(-1)?.time ?? 0);
+
+function planSequence(
+  start: Pose,
+  points: Motion["waypoints"],
+  mode: MotionMode,
+  swing: boolean,
+) {
   let previous = structuredClone(start),
     requestedTime = 0,
     elapsed = 0;
-  return motion.waypoints.map((point) => {
+  return points.map((point) => {
     const next = structuredClone(previous);
     for (const side of ["left", "right"] as const)
       Object.assign(next[side], point[side]);
@@ -99,7 +112,8 @@ export function planMotion(start: Pose, motion: Motion) {
     const bound = (channel: string, change: number, rate: number) =>
       floors.push({
         channel,
-        minimumSeconds: (Math.abs(change) * 1.875) / rate,
+        minimumSeconds:
+          (Math.abs(change) * (swing ? Math.PI / 2 : 1.875)) / rate,
       });
     for (const side of ["left", "right"] as const) {
       bound(
@@ -107,7 +121,7 @@ export function planMotion(start: Pose, motion: Motion) {
         new Vector3(...previous[side].position).distanceTo(
           new Vector3(...next[side].position),
         ),
-        0.45,
+        mode === "animated" ? 1.2 : 0.45,
       );
       bound(
         `${side} hand direction`,
@@ -140,21 +154,29 @@ export function planMotion(start: Pose, motion: Motion) {
         new Vector3(...previous[side].position).distanceTo(
           new Vector3(...next[side].position),
         ),
-        0.18,
+        mode === "animated" ? 1.2 : 0.18,
       );
       for (const key of ["yaw", "pitch"] as const)
-        bound(`${side} ${key}`, next[side][key] - previous[side][key], 0.5);
+        bound(
+          `${side} ${key}`,
+          next[side][key] - previous[side][key],
+          mode === "animated" ? 2 : 0.5,
+        );
     }
     bound(
       "pelvis travel",
       new Vector3(...previous.pelvis.offset).distanceTo(
         new Vector3(...next.pelvis.offset),
       ),
-      0.12,
+      mode === "animated" ? 0.5 : 0.12,
     );
     bound("pelvis yaw", next.pelvis.yaw - previous.pelvis.yaw, 0.5);
     for (const key of ["bend", "twist", "lean"] as const)
-      bound(`torso ${key}`, next.torso[key] - previous.torso[key], 0.5);
+      bound(
+        `torso ${key}`,
+        next.torso[key] - previous.torso[key],
+        mode === "animated" ? 1.5 : 0.5,
+      );
     const duration = Math.max(
       requestedDuration,
       ...floors.map((f) => f.minimumSeconds),
@@ -177,6 +199,41 @@ export function planMotion(start: Pose, motion: Motion) {
   });
 }
 
+export function planMotion(start: Pose, motion: Motion) {
+  let pose = structuredClone(start),
+    elapsed = 0;
+  const result: (ReturnType<typeof planSequence>[number] & {
+    cycle: number | null;
+    swing: boolean;
+  })[] = [];
+  const append = (points: Motion["waypoints"], cycle: number | null) => {
+    const swing = cycle !== null && motion.interpolation === "swing";
+    for (const segment of planSequence(
+      pose,
+      points,
+      motion.mode ?? "grounded",
+      swing,
+    )) {
+      result.push({ ...segment, start: elapsed, cycle, swing });
+      elapsed += segment.duration;
+      pose = segment.to;
+    }
+  };
+  if (motion.prepare) append(motion.prepare, null);
+  // Resolve partial targets once. Repeats hold the same omitted channels;
+  // they never drift or replay the one-time preparation.
+  const resolved = planSequence(
+    pose,
+    motion.waypoints,
+    motion.mode ?? "grounded",
+    false,
+  ).map((segment, i) => ({ ...segment.to, time: motion.waypoints[i].time }));
+  for (let cycle = 1; cycle <= (motion.repeat ?? 1); cycle++)
+    append(resolved, cycle);
+  if (motion.finish) append(motion.finish, null);
+  return result;
+}
+
 export function createMotionController(): MotionController {
   let driver: RigDriver | undefined,
     current = restPose();
@@ -185,6 +242,7 @@ export function createMotionController(): MotionController {
     ready: () => !!driver,
     pose: () => structuredClone(current),
     capture: () => driver?.capture?.(),
+    setSpeechLevel: (level) => driver?.setSpeechLevel?.(level),
     attach(value) {
       cancel?.();
       driver?.dispose();
@@ -227,11 +285,11 @@ export function createMotionController(): MotionController {
         let totalApplyMs = 0,
           maxApplyMs = 0;
         const reasons = new Set<string>();
-        if (duration > motion.waypoints.at(-1)!.time + 0.001)
+        if (duration > requestedSeconds(motion) + 0.001)
           reasons.add("Requested timing extended by movement speed limits");
         let frame = 0,
           done = false,
-          constrained = duration > motion.waypoints.at(-1)!.time + 0.001;
+          constrained = duration > requestedSeconds(motion) + 0.001;
         const finish = (status: MotionResult["status"]) => {
           if (done) return;
           done = true;
@@ -245,8 +303,18 @@ export function createMotionController(): MotionController {
             constrained,
             duration: (performance.now() - started) / 1000,
             reasons: [...reasons],
+            cycles: {
+              requested: motion.repeat ?? 1,
+              elapsed: segments.filter(
+                (segment, index) =>
+                  segment.cycle !== null &&
+                  segment.cycle !== segments[index + 1]?.cycle &&
+                  segment.start + segment.duration <=
+                    (performance.now() - started) / 1000,
+              ).length,
+            },
             timing: {
-              requestedSeconds: motion.waypoints.at(-1)!.time,
+              requestedSeconds: requestedSeconds(motion),
               plannedSeconds: duration,
               firstFrameMs,
               settlingSeconds: Math.max(
@@ -286,8 +354,9 @@ export function createMotionController(): MotionController {
           );
           const applyStart = performance.now();
           const applied = driver!.apply(
-            interpolate(segment.from, segment.to, ease(t)),
+            interpolate(segment.from, segment.to, motionEase(t, segment.swing)),
             Math.min(0.033, Math.max(0.001, time - previousTime)),
+            motion.mode ?? "grounded",
           );
           const applyMs = performance.now() - applyStart;
           totalApplyMs += applyMs;

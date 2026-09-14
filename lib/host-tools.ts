@@ -50,85 +50,118 @@ const foot = {
     position: {
       ...vector,
       description:
-        "Ankle target [x,y,z]. Default feet at [±0.1043,0.0871,-0.0035]. |x|<=0.4, y=0.07..0.6, z=-0.3..0.4. Keep one foot planted; shift pelvis over it before lifting the other.",
+        "Ankle target [x,y,z]. Default feet at [±0.1043,0.0871,-0.0035]. |x|<=0.4, y=0.07..0.6, z=-0.3..0.4. In grounded mode, keep one foot planted and shift pelvis over it before lifting the other.",
     },
     yaw: { type: "number", minimum: -0.45, maximum: 0.45 },
     pitch: { type: "number", minimum: -0.4, maximum: 0.4 },
+  },
+};
+const sequence = {
+  type: "array",
+  minItems: 1,
+  maxItems: 16,
+  items: {
+    type: "object",
+    additionalProperties: false,
+    required: ["time"],
+    properties: {
+      time: { type: "number", minimum: 0.2, maximum: 20 },
+      left: hand,
+      right: hand,
+      leftFoot: foot,
+      rightFoot: foot,
+      pelvis: {
+        type: "object",
+        additionalProperties: false,
+        required: ["offset", "yaw"],
+        properties: {
+          offset: {
+            ...vector,
+            description:
+              "Offset from standing hips, NOT absolute position. |x|<=0.14, y=-0.18..0.04, |z|<=0.14. Negative y lowers body; negative z moves hips backward. Shift x toward planted foot before a leg lift.",
+          },
+          yaw: { type: "number", minimum: -0.5, maximum: 0.5 },
+        },
+      },
+      torso: {
+        type: "object",
+        additionalProperties: false,
+        required: ["bend", "twist", "lean"],
+        properties: {
+          bend: {
+            type: "number",
+            minimum: -0.25,
+            maximum: 0.5,
+            description: "Positive bends forward.",
+          },
+          twist: { type: "number", minimum: -0.5, maximum: 0.5 },
+          lean: { type: "number", minimum: -0.25, maximum: 0.25 },
+        },
+      },
+      shoulders: {
+        type: "object",
+        additionalProperties: false,
+        required: ["left", "right"],
+        properties: {
+          left: { type: "number", minimum: -0.1, maximum: 0.25 },
+          right: { type: "number", minimum: -0.1, maximum: 0.25 },
+        },
+      },
+      head: {
+        type: "object",
+        additionalProperties: false,
+        required: ["yaw", "nod"],
+        properties: {
+          yaw: { type: "number", minimum: -0.55, maximum: 0.55 },
+          nod: { type: "number", minimum: -0.25, maximum: 0.25 },
+          tilt: { type: "number", minimum: -0.25, maximum: 0.25 },
+        },
+      },
+    },
   },
 };
 export const actions = [
   {
     name: "move_avatar",
     description:
-      "Compose continuous whole-body motion: hands/fingers, feet/legs, pelvis, torso, shoulders, head. No animation presets. Omitted channels hold their previous value. Times increase in seconds from now. Joint limits, collisions, floor and planted-foot support constrain motion. Returns actual pose and reasons; adapt if a target was blocked.",
+      "Compose continuous whole-body motion: hands/fingers, feet/legs, pelvis, torso, shoulders, head. No animation presets. Omitted channels hold their previous value. Times increase separately within prepare, waypoints and finish. repeat counts the cycle executions. Joint limits, collisions and floor constrain all motion; grounded mode also requires planted-foot support. Returns actual pose and reasons; adapt if a target was blocked.",
     parameters: {
       type: "object",
       additionalProperties: false,
       required: ["waypoints"],
       properties: {
+        prepare: {
+          ...sequence,
+          description: "One-time preparation; its times start at zero.",
+        },
         waypoints: {
-          type: "array",
-          minItems: 1,
-          maxItems: 16,
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["time"],
-            properties: {
-              time: { type: "number", minimum: 0.2, maximum: 20 },
-              left: hand,
-              right: hand,
-              leftFoot: foot,
-              rightFoot: foot,
-              pelvis: {
-                type: "object",
-                additionalProperties: false,
-                required: ["offset", "yaw"],
-                properties: {
-                  offset: {
-                    ...vector,
-                    description:
-                      "Offset from standing hips, NOT absolute position. |x|<=0.14, y=-0.18..0.04, |z|<=0.14. Negative y lowers body; negative z moves hips backward. Shift x toward planted foot before a leg lift.",
-                  },
-                  yaw: { type: "number", minimum: -0.5, maximum: 0.5 },
-                },
-              },
-              torso: {
-                type: "object",
-                additionalProperties: false,
-                required: ["bend", "twist", "lean"],
-                properties: {
-                  bend: {
-                    type: "number",
-                    minimum: -0.25,
-                    maximum: 0.5,
-                    description: "Positive bends forward.",
-                  },
-                  twist: { type: "number", minimum: -0.5, maximum: 0.5 },
-                  lean: { type: "number", minimum: -0.25, maximum: 0.25 },
-                },
-              },
-              shoulders: {
-                type: "object",
-                additionalProperties: false,
-                required: ["left", "right"],
-                properties: {
-                  left: { type: "number", minimum: -0.1, maximum: 0.25 },
-                  right: { type: "number", minimum: -0.1, maximum: 0.25 },
-                },
-              },
-              head: {
-                type: "object",
-                additionalProperties: false,
-                required: ["yaw", "nod"],
-                properties: {
-                  yaw: { type: "number", minimum: -0.55, maximum: 0.55 },
-                  nod: { type: "number", minimum: -0.25, maximum: 0.25 },
-                  tilt: { type: "number", minimum: -0.25, maximum: 0.25 },
-                },
-              },
-            },
-          },
+          ...sequence,
+          description:
+            "One cycle, times start at zero. Omitted channels resolve once from preparation and hold across repeats.",
+        },
+        repeat: {
+          type: "integer",
+          minimum: 1,
+          maximum: 20,
+          description:
+            "Total cycle count, including the first (default 1). Preparation and finish happen once. Maximum whole plan 40 seconds.",
+        },
+        finish: {
+          ...sequence,
+          description:
+            "One-time ending after all cycles; times start at zero. Use to return to standing.",
+        },
+        mode: {
+          type: "string",
+          enum: ["grounded", "animated"],
+          description:
+            "Default grounded enforces static balance. Animated allows unsupported/flight poses for running in place, with faster bounded limb rates; floor, collision and joint limits remain. No physics or scene travel.",
+        },
+        interpolation: {
+          type: "string",
+          enum: ["ease", "swing"],
+          description:
+            "Default ease settles at waypoints. Swing uses sinusoidal reversals for rhythmic back-and-forth cycles; use two opposing extremes and return to the prepared pose.",
         },
       },
     },
@@ -198,7 +231,7 @@ export function hostContext(
           comfortable_right_raised_hand: [-0.29, 0.83, 0.07],
         },
         limits:
-          "Constrained arms and legs, palm roll/fingers, pelvis, torso, shoulders and head are supported. Knees/elbows hinge one way. Joint rates and wrist swing are limited. Simplified body collision, sole-floor and static support checks reject unsafe poses. No dynamic walking, jumping, physical balance or lip sync. Foot targets may need pelvis movement to be reachable.",
+          "Constrained arms and legs, palm roll/fingers, pelvis, torso, shoulders and head are supported. Knees/elbows hinge one way. Joint rates and wrist swing are limited. Simplified body collision, sole-floor and static support checks reject unsafe poses. Animated mode supports procedural running in place and flight poses with faster bounded rates, without static balance. No scene travel or physics. Live speech drives a simple mouth opening, not phoneme lip sync. Foot targets may need pelvis movement to be reachable.",
         motion_guidance:
           "For a shallow crouch keep feet fixed, lower pelvis.offset.y about -0.07, move pelvis.offset.z about -0.055, bend torso about 0.2. For a foot lift, first shift pelvis.offset.x about ±0.09 toward the foot staying planted, then raise the opposite ankle slowly. These are examples for composing targets, not gesture presets. Inspect results and use modest reaches.",
         movement_skill: movementSkill,

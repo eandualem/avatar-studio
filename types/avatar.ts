@@ -88,14 +88,25 @@ export const waypointSchema = z
       .optional(),
   })
   .strict();
-export const motionSchema = z
-  .object({ waypoints: z.array(waypointSchema).min(1).max(16) })
-  .strict()
+const sequenceSchema = z
+  .array(waypointSchema)
+  .min(1)
+  .max(16)
   .refine(
-    (v) =>
-      v.waypoints.every((p, i) => i === 0 || p.time > v.waypoints[i - 1].time),
-    "Waypoint times must increase",
+    (points) => points.every((p, i) => i === 0 || p.time > points[i - 1].time),
+    "Waypoint times must increase within each sequence",
   );
+export const motionSchema = z
+  .object({
+    prepare: sequenceSchema.optional(),
+    waypoints: sequenceSchema,
+    repeat: z.number().int().min(1).max(20).optional(),
+    finish: sequenceSchema.optional(),
+    mode: z.enum(["grounded", "animated"]).optional(),
+    interpolation: z.enum(["ease", "swing"]).optional(),
+  })
+  .strict();
+export type MotionMode = "grounded" | "animated";
 export type Vec3 = z.infer<typeof vectorSchema>;
 export type Curls = z.infer<typeof curlsSchema>;
 export type Motion = z.infer<typeof motionSchema>;
@@ -122,6 +133,7 @@ export type MotionResult = {
   constrained: boolean;
   duration: number;
   reasons?: string[];
+  cycles?: { requested: number; elapsed: number };
   timing?: {
     requestedSeconds: number;
     plannedSeconds: number;
@@ -149,6 +161,7 @@ export type RigDriver = {
   apply: (
     pose: Pose,
     dt?: number,
+    mode?: MotionMode,
   ) => {
     pose: Pose;
     constrained: boolean;
@@ -157,6 +170,7 @@ export type RigDriver = {
   };
   dispose: () => void;
   halt?: () => void;
+  setSpeechLevel?: (level: number) => void;
   reset?: () => Pose;
   capture?: () => AvatarSnapshot;
 };
@@ -166,6 +180,7 @@ export interface MotionController {
   ready(): boolean;
   pose(): Pose;
   stop(): void;
+  setSpeechLevel?(level: number): void;
   reset?(): Pose;
   capture?(): AvatarSnapshot | undefined;
   execute(motion: Motion, signal?: AbortSignal): Promise<MotionResult>;

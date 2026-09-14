@@ -22,6 +22,7 @@ type Context = {
   error: string;
   rounds: number;
   voiceHistory: Conversation["messages"];
+  labMouth: number;
   labCall: Pending | null;
   labReport: LabReport | null;
   labPose: ReturnType<MotionController["pose"]>;
@@ -33,6 +34,7 @@ type Events =
   | { type: "START_LIVE" }
   | { type: "OPEN_DEV" }
   | { type: "CLOSE_DEV" }
+  | { type: "DEV_MOUTH"; level: number }
   | { type: "DEV_RESET" }
   | { type: "DEV_RUN"; call: Pending }
   | { type: "STOP" };
@@ -120,6 +122,7 @@ export const conversationMachine = setup({
     error: "",
     rounds: 0,
     voiceHistory: [],
+    labMouth: 0,
     labCall: null,
     labReport: null,
     labPose: input.controller.pose(),
@@ -229,8 +232,24 @@ export const conversationMachine = setup({
       description:
         "Exclusive local tool testing; no chat, live allocation or history changes.",
       initial: "ready",
-      exit: "stopMotion",
+      exit: [
+        "stopMotion",
+        ({ context }) => context.controller.setSpeechLevel?.(0),
+        assign({ labMouth: 0 }),
+      ],
       on: {
+        DEV_MOUTH: {
+          guard: ({ event }) => Number.isFinite(event.level),
+          actions: [
+            assign({
+              labMouth: ({ event }) => Math.max(0, Math.min(1, event.level)),
+            }),
+            ({ context }) =>
+              context.controller.setSpeechLevel?.(context.labMouth),
+          ],
+          description:
+            "Preview the speech mouth locally, without audio or a live call.",
+        },
         DEV_RESET: {
           target: ".ready",
           guard: ({ context }) => context.controller.ready(),

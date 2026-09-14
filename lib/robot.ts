@@ -1,6 +1,7 @@
 import * as T from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { createSpeechMouth } from "./speech-mouth";
 import { createBodyRig } from "./body/rig";
 import { initializeContacts } from "./body/collision";
 import type { RigDriver } from "@/types/avatar";
@@ -103,22 +104,28 @@ export async function createRobot(
       object.frustumCulled = false;
     }
   });
-  let body;
+  let body, mouth;
   try {
     await initializeContacts();
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     body = createBodyRig(model);
+    mouth = createSpeechMouth(model);
   } catch (error) {
     dispose();
     throw error;
   }
+  let lastRender = performance.now();
   const render = () => {
+    const now = performance.now();
+    mouth.tick(Math.min(0.1, (now - lastRender) / 1000));
+    lastRender = now;
     renderer.render(scene, camera);
     frame = requestAnimationFrame(render);
   };
   render();
   return {
     apply: body.apply,
+    setSpeechLevel: mouth.setLevel,
     halt: body.halt,
     reset: body.reset,
     dispose,
