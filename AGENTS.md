@@ -86,6 +86,18 @@ Elias also reported resolving the September 14 Live creation error by adding
 API funds. The runtime diagnostics investigation is closed at his request;
 no runtime changes, restart or paid retry were made for that investigation.
 
+## Conversational expression (issue #28)
+
+Elias requested spontaneous body language, especially waving while greeting.
+Backend and Live prompts now encourage short contextual gestures, concurrent
+speech/action and respect for stillness/held poses. A subscription-backed plain
+“Hello!” produced one completed wave; a greeting with “stay completely still”
+produced no tools. Backend artifact v2 is active on 7112. New Live conversations
+use separate 7113 with the updated startup prompt; text stays on 7112. All old
+runtime processes and their histories are preserved. Use **New conversation**
+for the new Live policy; session IDs do not migrate backend memory. Setup and
+verification are in `docs/expressive-greetings.md`. No new paid Live test was run.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction
