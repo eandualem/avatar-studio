@@ -14,7 +14,7 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current work: independent parallel body control (issue #32)
+## Independent parallel body control (issue #32 / PR #33)
 
 Elias resumed implementation on September 14, 2026. Start with
 [issue #32](https://github.com/eandualem/avatar-studio/issues/32),
@@ -24,7 +24,11 @@ Elias resumed implementation on September 14, 2026. Start with
 Live only converses. An independent body controller receives each coalesced user
 utterance and emits a movement tool or structured hold. The app owns revisions,
 exclusive execution, priority, cancellation and actual engine lifecycle facts.
-The runtime dependency is assistant-runtime PR #123. Body decisions use fresh
+Implementation PR #33 passes 87 tests and all local checks. A real subscription
+body decision completed an eight-cycle run on the renderer; Live audio remains
+Elias-run acceptance. Runtime PR #123 is merged and isolated 7114 is active.
+GitHub Actions is blocked by account billing; see the verification note.
+Body decisions use fresh
 backend sessions to isolate session-scoped cancellation; text remains separate.
 
 Preserve Charlie, the layout, procedural solver and subscription setup. No

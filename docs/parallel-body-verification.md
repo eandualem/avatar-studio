@@ -2,10 +2,10 @@
 
 Tracks [Avatar Studio #32](https://github.com/eandualem/avatar-studio/issues/32)
 and depends on [assistant-runtime #123](https://github.com/eandualem/assistant-runtime/pull/123).
-Elias resumed implementation on September 14, 2026. Implementation is on
-`feat/parallel-body-control`, built separately at `/tmp/avatar-studio-parallel`.
-The original running checkout and all earlier runtime instances are preserved
-while this branch is reviewed. Runtime dependency merged as `6e10c33`; application landing evidence follows below.
+Elias resumed implementation on September 14, 2026. Application delivery: [PR #33](https://github.com/eandualem/avatar-studio/pull/33),
+implemented and checked in isolated `/tmp/avatar-studio-parallel` from main.
+Runtime dependency merged as `6e10c33`. The original superseded experiment is
+retained on `fix/live-action-dispatch`; it is not part of this merge.
 
 ## Operating contract
 
@@ -21,6 +21,10 @@ while this branch is reviewed. Runtime dependency merged as `6e10c33`; applicati
 - Every decision gets a new session UUID. Cancellation in assistant-runtime is
   session-scoped and has no pre-arrival tombstone, so old sessions are never
   reused. The app rejects stale responses again immediately before execution.
+  The response reader stays alive for at most 120 seconds after logical
+  cancellation; a known late tool gets one failed non-executed receipt. Unknown
+  timeout/transport failures trigger best-effort cancellation without guessing
+  a tool ID or replaying the request.
 - Native `host_tools` output allows only the advertised procedural `move_avatar`,
   `hold_avatar`, `stop_avatar`, or runtime-native hold. Move metadata declares
   explicit/incidental intent and a short physical label. The runtime admits one
@@ -60,7 +64,7 @@ histories remain intact; typed chat stays on 7112. The new voice/body URLs are
 
 ## Verification
 
-All 85 tests, TypeScript, lint and production build pass locally.
+All 87 tests, TypeScript, lint and production build pass locally.
 
 Offline tests cover greeting/question scheduling, coalescing, correction before
 admission, duplicate/replay/snapshot handling, delayed model returns, priority,
@@ -80,6 +84,29 @@ appeared; Stop removed movement immediately while the voice connection stayed
 active. Reset restored the initial pose. Desktop and 390 × 844 mobile controls
 fit the panel, and movement details remained available after hangup. A fixture
 lookup error was fixed during testing; it was not a production motion failure.
+
+Actual subscription-backed integration on 7114 used synthetic voice plus the
+real renderer: a plain greeting chose `hold_avatar`; an explicit eight-cycle
+run produced procedural targets, completed all eight cycles in **8.833 seconds**,
+and returned to standing. The first rig frame arrived **1.6 ms** after admission.
+Planning HTTP time was **14.6 seconds** (plus the 900 ms app quiet interval);
+final receipt bookkeeping took **86 ms**, with no completion model turn. The
+receipt reported wrist swing limits and two slow frames. After an explicit UI
+stop, an ordinary conversational utterance chose hold again (7.0-second model
+request, 7 ms receipt). User/Live speech alone appeared in chat throughout.
+Both 7113 and 7114 reported zero active provider calls after testing.
+
+The assistant-runtime peer reviewed application wire fields, history bounds,
+capability checks and cancellation. Two confirmed cleanup gaps (known late tools
+and unknown decision timeouts) were fixed with regression tests; the peer
+confirmed the intended receipt semantics. No additional paid model call was
+used for that review.
+
+GitHub's application job did not start because account payments/spending limits
+block Actions on this repository. The same type/lint/test/build commands pass
+locally. Main is unprotected, so this is recorded external CI unavailability,
+not a failed application check. Required branch protection is absent. The final
+PR records the reviewed commit and matching local check evidence.
 
 A browser check of the ordinary Live-start control was rejected by automatic
 approval review because it could request microphone access or allocate a paid

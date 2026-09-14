@@ -228,3 +228,26 @@ it("bounds long multilingual conversation context before both runtime contracts"
     }).replace(/[^\x00-\x7f]/g, "\\u0000").length,
   ).toBeLessThan(32000);
 });
+
+it("keeps a bounded late response readable after logical cancellation for receipt cleanup", async () => {
+  let finish!: (response: Response) => void;
+  const fetch = vi.fn<typeof globalThis.fetch>(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const abort = new AbortController();
+  const decision = bodyTransport.decide(input, abort.signal);
+  abort.abort();
+  expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+  finish(
+    Response.json({
+      content: null,
+      decision: "pending",
+      pending_tool_call: pending,
+    }),
+  );
+  expect(await decision).toEqual(pending);
+});

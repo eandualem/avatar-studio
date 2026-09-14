@@ -138,6 +138,17 @@ describe("independent body scheduling", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(motion.execute).not.toHaveBeenCalled();
       expect(transport.cancel).toHaveBeenCalledOnce();
+      expect(transport.receipt).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        {
+          outcome: "failed",
+          result: expect.objectContaining({
+            status: "canceled",
+            executed: false,
+          }),
+        },
+      );
       body.close();
     },
   );
@@ -278,4 +289,20 @@ it("keeps requested stillness across call reconstruction without treating ordina
   expect(motion.execute).not.toHaveBeenCalled();
   held.close();
   expect(held.snapshot().still).toBe(true);
+});
+
+it("cancels the isolated backend decision when its response is unknown or times out", async () => {
+  const { body, motion, transport } = setup();
+  vi.mocked(transport.decide).mockRejectedValueOnce(
+    new Error("request timeout"),
+  );
+  body.observe([user("Wave")]);
+  await vi.advanceTimersByTimeAsync(900);
+  expect(transport.cancel).toHaveBeenCalledWith(
+    vi.mocked(transport.decide).mock.calls[0][0].session_id,
+    expect.any(String),
+  );
+  expect(transport.receipt).not.toHaveBeenCalled();
+  expect(motion.execute).not.toHaveBeenCalled();
+  expect(body.snapshot().actions[0].status).toBe("failed");
 });

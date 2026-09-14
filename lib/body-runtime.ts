@@ -3,21 +3,21 @@ import { pendingSchema } from "@/types/conversation";
 import instructions from "@/profiles/body-instructions.md?raw";
 import type { BodyTransport } from "./body-controller";
 
-async function request(operation: string, body: unknown, signal?: AbortSignal) {
+async function request(operation: string, body: unknown, timeout = 15000) {
   const response = await fetch(`/api/runtime/body-${operation}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(120000)])
-      : AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(timeout),
   });
   const result = await response.json();
   if (!response.ok)
     throw new Error(
       typeof result.detail === "string"
         ? result.detail
-        : "The body runtime is unavailable.",
+        : typeof result.error === "string"
+          ? result.error
+          : "The body runtime is unavailable.",
     );
   return result;
 }
@@ -29,6 +29,10 @@ const responseSchema = z.object({
 });
 export const bodyTransport: BodyTransport = {
   async decide(input, signal) {
+    signal.throwIfAborted();
+    // Cancellation invalidates app admission and uses the runtime cancel API.
+    // Keep reading the bounded response so a late pending tool can receive a
+    // failed receipt instead of leaving its decision session awaiting a result.
     const result = responseSchema.parse(
       await request(
         "chat",
@@ -39,7 +43,7 @@ export const bodyTransport: BodyTransport = {
             instructions +
             "\n\nDecide once for the latest user utterance in host_context.view.data.conversation. The accompanying body_state and current_pose are authoritative.",
         },
-        signal,
+        120000,
       ),
     );
     if (result.error) throw new Error(result.error);

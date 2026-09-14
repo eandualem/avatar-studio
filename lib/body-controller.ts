@@ -235,8 +235,18 @@ export class BodyController {
         work.abort.signal.aborted ||
         revision !== this.revision ||
         this.pending !== work
-      )
+      ) {
+        if (pending)
+          await this.transport.receipt(request, pending, {
+            outcome: "failed",
+            result: {
+              status: "canceled",
+              executed: false,
+              reason: "Decision was superseded before engine admission",
+            },
+          });
         return;
+      }
       const decision = pending
         ? bodyDecision(pending)
         : { kind: "hold" as const, still: false };
@@ -306,6 +316,10 @@ export class BodyController {
       if (pending) await this.transport.receipt(request, pending, receipt);
     } catch (error) {
       if (work.abort.signal.aborted || this.closed) return;
+      if (pending === undefined)
+        void this.transport
+          .cancel(request.session_id, request.id)
+          .catch(() => {});
       if (this.pending === work) this.pending = undefined;
       if (this.moving === work) {
         this.moving = undefined;
