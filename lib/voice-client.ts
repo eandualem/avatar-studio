@@ -57,9 +57,9 @@ export class VoiceClient {
         this.update({
           body,
           work: body.active
-            ? "Moving"
+            ? "Body · Moving"
             : body.actions.at(-1)?.status === "requested"
-              ? "Preparing movement"
+              ? "Body · Planning"
               : "",
         });
       },
