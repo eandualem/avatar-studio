@@ -35,6 +35,11 @@ assistant-runtime serve --host 127.0.0.1 --port 7100 --no-replace
 API credentials belong in assistant-runtime, never the frontend. This is a local
 application; public deployment and authentication are outside this milestone.
 
+For subscription-backed chat, body tools and avatar inspection, see
+[Codex subscription setup](docs/codex-subscription.md). Codex login and the
+runtime connection are separate; the subscription-only configuration rejects
+backend requests rather than falling back to API billing.
+
 Try: “Raise your left hand, point up with your index finger, and look toward it.”
 Then: “Relax both hands slowly.” Stop interrupts movement and the current reply.
 Also try: “Crouch slightly with both feet flat,” or “Shift your weight onto your
@@ -45,7 +50,7 @@ For direct audio, enable assistant-runtime's **GPT-Live 1** integration and sele
 **Talk live**. It connects microphone and speaker, displays spoken fragments and
 backend answers, and lets the assistant use Charlie's existing movement tools.
 Mute, stop delegated movement, or end the call from the live controls.
-See [voice setup and limits](docs/voice.md). OpenAI API access is required;
+See [voice setup and limits](docs/voice.md). OpenAI API access is required for audio;
 credentials stay in the runtime. No microphone starts automatically.
 
 ## Current scope

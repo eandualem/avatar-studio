@@ -6,6 +6,12 @@ the runtime's configured backend model composes the same continuous avatar
 tool calls used by text chat. WebRTC audio goes between browser and OpenAI;
 the runtime owns provider credentials, delegation, transcripts and closure.
 
+The backend may use a [Codex subscription](codex-subscription.md) for text,
+vision and tool decisions while GPT-Live audio remains API-backed. Changing the
+voice provider does not change the delegated backend model. In subscription-only
+mode, a backend auth failure must stop delegation without trying API credentials.
+The voice prompt requires fresh backend visual findings before describing a pose.
+
 ## Setup
 
 Use assistant-runtime containing [PR #119](https://github.com/eandualem/assistant-runtime/pull/119)
