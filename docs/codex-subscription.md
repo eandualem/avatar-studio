@@ -1,12 +1,12 @@
 # Codex subscription backend
 
-Current routing update: text remains on 7112; new Live conversations use 7113
-with proactive greeting instructions. See [expressive greetings](expressive-greetings.md)
-for activation, preserved history and the fresh-conversation boundary.
-
-Charlie has two model roles. GPT-Live handles audio; its delegated backend
-handles text reasoning, avatar tools and image inspection. A working OpenAI
-voice call does not select an OpenAI backend or authenticate a Codex subscription.
+Current roles are **Voice** (API-backed GPT-Live conversation) and **Body**
+(independent Codex subscription movement decisions). Typed text and image
+inspection use the separate subscription text runtime. Voice no longer delegates
+work to a backend; the application schedules Body and sends quiet engine facts
+to Voice. See [Voice and Body speed](body-fast-mode.md) for current model/tier
+configuration and routing, and [parallel body verification](parallel-body-verification.md)
+for the execution contract. The earlier deployment evidence below is historical.
 
 Elias selected subscription-only backend usage. The backend must reject a request
 when subscription authentication is missing, expired or disallowed; it must not
@@ -47,12 +47,11 @@ as recorded below.
 Sources: [Codex authentication](https://learn.chatgpt.com/docs/auth),
 [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol).
 
-The backend receives the actual avatar image through `look_at_screen`; no
-Claude-specific vision stage or image-to-description model is required. GPT-Live
-receives the backend’s textual findings. Its voice instructions now require
-inspection before describing a current pose, and an honest failure response if
-inspection cannot complete. Prompt guidance reduces unsupported claims but does
-not guarantee model behavior.
+The text backend receives the actual avatar image through `look_at_screen`; no
+Claude-specific vision stage or image-to-description model is required. The earlier delegated Live setup
+received the backend’s textual findings. The current independent Voice/Body
+architecture does not delegate image inspection from Voice; do not interpret
+these earlier vision checks as verification of a current Voice capability.
 
 ## Existing conversations
 

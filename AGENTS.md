@@ -14,6 +14,24 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
+## Current: Voice/Body timing and blocked Fast activation (issue #36)
+
+Elias confirmed Voice works, then reported delayed motion and requested clear
+names plus Codex Fast mode. **Voice** is API-backed `gpt-live-1` on 7115; **Body**
+is independent subscription `openai:gpt-5.6-sol`, low reasoning, on 7114. Text
+stays on 7112. Start with [Voice and Body speed](docs/body-fast-mode.md) and
+[issue #36](https://github.com/eandualem/avatar-studio/issues/36).
+
+PR #37 adds Voice/Body labels and an expandable timing view; 100 tests and local
+type/lint/build plus desktop/mobile checks pass. Runtime Fast support is merged
+in PR #127 and isolated on 7116, but the first real trial requested `priority`
+and received `default`. The comparison stopped after two calls; no Fast speedup
+is verified and the app remains on Body 7114. Issue #36 stays open for that
+external tier mismatch. No further model retry or paid Live call was made.
+Preserve every runtime, including 7115/7116, and its in-memory history. Do not
+claim Fast is active merely from health configuration. The detailed note has
+response IDs, timing evidence and the next step.
+
 ## Independent parallel body control (issue #32 / PR #33)
 
 Elias resumed implementation on September 14, 2026. Start with
@@ -25,11 +43,12 @@ Live only converses. An independent body controller receives each coalesced user
 utterance and emits a movement tool or structured hold. The app owns revisions,
 exclusive execution, priority, cancellation and actual engine lifecycle facts.
 Implementation PR #33 passes 87 tests and all local checks. A real subscription
-body decision completed an eight-cycle run on the renderer; Live audio remains
-Elias-run acceptance. Runtime PR #123 is merged; body stays on isolated 7114.
+body decision completed an eight-cycle run on the renderer; Elias later
+confirmed real Live works after the setup correction. Runtime PR #123 is merged; body stays on isolated 7114.
 Issue #34 / PR #35 fixes rejected Live setup handling; voice now uses isolated
 7115 with corrected runtime permissions. See [setup recovery](docs/live-setup-recovery.md)
-for diagnosis, verification and activation evidence. App checks now cover 96 tests.
+for diagnosis, verification and activation evidence. That fix covered 96 tests;
+current timing feedback brings the suite to 100.
 GitHub Actions is blocked by account billing; see the verification note.
 Body decisions use fresh
 backend sessions to isolate session-scoped cancellation; text remains separate.
@@ -41,7 +60,7 @@ are superseded experiments; do not merge #31. Preserve its branch for reference.
 The detailed verification note records current implementation/deployment status;
 inspect the actual checkout and runtime health before further changes.
 
-## Delivered history (earlier milestones; next-session direction above wins)
+## Delivered history (current direction above wins)
 
 Live interaction was accepted in PR #13; issue #11 is closed. Elias resumed work
 on animation responsiveness and naturalness in issue #14. Its opt-in Dev test
