@@ -11,7 +11,7 @@ import {
 } from "@/types/voice";
 import { executeTool, hostContext } from "./host-tools";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
-import { spokenMessages } from "./voice-transcript";
+import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
 import { VoiceReplies } from "./voice-replies";
 
@@ -68,10 +68,11 @@ export class VoiceClient {
   };
   private transcript() {
     this.update({
-      messages: [
-        ...spokenMessages(this.callId, this.fragments),
-        ...this.answers.messages(),
-      ].slice(-400),
+      messages: liveMessages(
+        this.callId,
+        this.fragments,
+        this.answers.positioned(),
+      ).slice(-400),
     });
   }
   private check() {
@@ -292,6 +293,7 @@ export class VoiceClient {
     const envelope = voiceEventSchema.parse(raw);
     if (envelope.call_id !== this.callId) return;
     const { event, data } = envelope;
+    const recovered = cursor !== undefined && cursor <= this.stateCursor;
     if (cursor !== undefined) {
       if (cursor <= this.eventCursor) return;
       this.eventCursor = cursor;
@@ -308,7 +310,15 @@ export class VoiceClient {
       this.transcript();
     } else if (event === "backend") {
       const inner = data.event as Record<string, unknown>;
-      if (this.answers.accept(String(data.delegation_id), inner))
+      if (
+        this.answers.accept(
+          String(data.delegation_id),
+          inner,
+          this.fragments.length,
+          this.fragments.filter((fragment) => fragment.role === "user").length,
+          recovered,
+        )
+      )
         this.transcript();
       if (inner.type === "error")
         this.update({

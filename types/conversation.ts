@@ -18,6 +18,7 @@ export const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
   source: z.enum(["voice", "backend"]).optional(),
+  orderUncertain: z.boolean().optional(),
 });
 export const conversationSchema = z.object({
   id: z.string(),
