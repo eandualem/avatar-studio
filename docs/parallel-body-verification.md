@@ -50,6 +50,11 @@ retained on `fix/live-action-dispatch`; it is not part of this merge.
 
 ## Runtime activation
 
+Current routing after the setup correction is text **7112**, body **7114**,
+voice **7115**. See [Live setup recovery](live-setup-recovery.md) for the follow-up
+diagnosis and activation evidence. The original activation below is preserved
+as historical evidence; its malformed voice request was found in Elias's trial.
+
 The assistant-runtime agent activated isolated **7114** from merged `6e10c33`
 on September 14, 2026. Source: `/tmp/assistant-runtime-parallel-body`; private
 state/launcher: `/tmp/avatar-codex-7114`. No reload or process replacement.

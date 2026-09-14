@@ -109,6 +109,28 @@ describe("voice transport boundaries", () => {
     );
     await expect(voiceRequest("status")).rejects.toBeInstanceOf(VoiceHttpError);
   });
+  it.each([
+    [
+      { detail: "Invalid configuration", allocation_status: "rejected" },
+      "rejected",
+    ],
+    [{ detail: "Timed out", allocation_status: "unknown" }, "unknown"],
+    [{ detail: "Older runtime error" }, "unknown"],
+    [{ detail: "Unexpected metadata", allocation_status: true }, "unknown"],
+    [null, "unknown"],
+  ])(
+    "preserves only explicit allocation rejection metadata: %j",
+    async (body, allocationStatus) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => Response.json(body, { status: 502 })),
+      );
+      await expect(voiceRequest("calls", "POST", {})).rejects.toEqual(
+        expect.objectContaining({ status: 502, allocationStatus }),
+      );
+      expect(fetch).toHaveBeenCalledOnce();
+    },
+  );
   it("reconnects at the last processed event and ignores replayed IDs", async () => {
     vi.useFakeTimers();
     const sources: FakeSource[] = [];

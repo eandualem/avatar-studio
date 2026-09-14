@@ -26,14 +26,17 @@ utterance and emits a movement tool or structured hold. The app owns revisions,
 exclusive execution, priority, cancellation and actual engine lifecycle facts.
 Implementation PR #33 passes 87 tests and all local checks. A real subscription
 body decision completed an eight-cycle run on the renderer; Live audio remains
-Elias-run acceptance. Runtime PR #123 is merged and isolated 7114 is active.
+Elias-run acceptance. Runtime PR #123 is merged; body stays on isolated 7114.
+Issue #34 / PR #35 fixes rejected Live setup handling; voice now uses isolated
+7115 with corrected runtime permissions. See [setup recovery](docs/live-setup-recovery.md)
+for diagnosis, verification and activation evidence. App checks now cover 96 tests.
 GitHub Actions is blocked by account billing; see the verification note.
 Body decisions use fresh
 backend sessions to isolate session-scoped cancellation; text remains separate.
 
 Preserve Charlie, the layout, procedural solver and subscription setup. No
 agent-paid Live trial is authorized. Real audio acceptance belongs to Elias.
-Keep 7100/7110/7112/7113 and their histories intact. Issue #30 and draft PR #31
+Keep 7100/7110/7112/7113/7114 and their histories intact. Issue #30 and draft PR #31
 are superseded experiments; do not merge #31. Preserve its branch for reference.
 The detailed verification note records current implementation/deployment status;
 inspect the actual checkout and runtime health before further changes.
