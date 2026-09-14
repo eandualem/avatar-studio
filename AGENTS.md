@@ -14,26 +14,29 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current: Voice/Body timing and blocked Fast activation (issue #36)
+## Current: GPT-6 Astra Body with Fast requested (issue #36)
 
-Elias confirmed Voice works, then reported delayed motion and requested clear
-names plus Codex Fast mode. **Voice** is API-backed `gpt-live-1` on 7115; **Body**
-is independent subscription `openai:gpt-5.6-sol`, low reasoning, on 7114. Text
-stays on 7112. Start with [Voice and Body speed](docs/body-fast-mode.md) and
-[issue #36](https://github.com/eandualem/avatar-studio/issues/36).
+Elias explicitly requested GPT-6 and Fast in the request after the Sol trial.
+**Body now uses `openai:gpt-6-astra`, low reasoning (4000 budget), with Codex Fast
+requested on isolated 7117.** Voice stays API-backed `gpt-live-1` on 7115; text
+stays Sol on 7112. Start with [the Astra trial and activation](docs/body-astra.md).
+This supersedes the earlier hold on changing models or routing after a returned
+standard tier. Preserve all older runtimes, including 7114/7116, and histories.
 
-Merged PR #37 adds Voice/Body labels and an expandable timing view; 100 tests and local
-type/lint/build plus desktop/mobile checks pass. Runtime Fast support is merged
-in PR #127 and isolated on 7116, but the first real trial requested `priority`
-and received `default`. The comparison stopped after two calls; no Fast speedup
-is verified and the app remains on Body 7114. Issue #36 stays open for that
-external tier mismatch. No further model retry or paid Live call was made.
-Preserve every runtime, including 7115/7116, and its in-memory history. Do not
-claim Fast is active merely from health configuration. The detailed note has
-response IDs, timing evidence and the next step. The delivered UI reads the
-saved real wave as 901 ms speech wait, 12.3 s full planning, 22 ms start delay
-and 5.0 s motion. Earlier 4.739 s server message timestamps are not a full
-planning stopwatch.
+Runtime PR #130 fixes Astra's effort mapping and passes 2,390 tests/all CI.
+Two actual subscription decisions took 6.814 s (same offline wave input) and
+7.3 s (renderer planning); the rendered wave completed and returned to standing.
+Earlier Sol samples were 11.497 s and 12.3 s respectively. This is a small trial,
+not a guaranteed speed multiplier. Both Astra responses requested `priority`
+and reported `default`: Fast is enabled in requests, but actual Fast processing
+is not verified. Keep that distinction in future reports. No real Live call or
+extra model retry was allocated. Elias owns the next real Voice comparison.
+
+Merged PR #37 supplies Voice/Body labels and Body timing. App implementation is
+unchanged from its 100-test/type/lint/build and desktop/mobile verification.
+[The earlier Sol evidence](docs/body-fast-mode.md) is retained as history. Its
+4.739 s server-message interval ended near stream initialization, not full
+planning completion; use the host's complete request timing for comparisons.
 
 ## Independent parallel body control (issue #32 / PR #33)
 

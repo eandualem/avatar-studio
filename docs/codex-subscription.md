@@ -4,7 +4,7 @@ Current roles are **Voice** (API-backed GPT-Live conversation) and **Body**
 (independent Codex subscription movement decisions). Typed text and image
 inspection use the separate subscription text runtime. Voice no longer delegates
 work to a backend; the application schedules Body and sends quiet engine facts
-to Voice. See [Voice and Body speed](body-fast-mode.md) for current model/tier
+to Voice. See [GPT-6 Body trial](body-astra.md) for current model/tier
 configuration and routing, and [parallel body verification](parallel-body-verification.md)
 for the execution contract. The earlier deployment evidence below is historical.
 
