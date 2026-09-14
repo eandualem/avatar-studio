@@ -9,6 +9,10 @@ Built with Next.js, Three.js and XState, backed by
 [assistant-runtime](https://github.com/eandualem/assistant-runtime).
 The approved Blender model and reference layout are preserved.
 
+Next-session work: [independent parallel body control](docs/parallel-body-control.md)
+([issue #32](https://github.com/eandualem/avatar-studio/issues/32)). This is the
+agreed replacement for Live-delegated movement; implementation has not started.
+
 ## Run locally
 
 Use Bun 1.4 or later and Node 22 or later:

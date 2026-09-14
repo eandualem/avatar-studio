@@ -1,5 +1,11 @@
 # Live action dispatch and policy activation
 
+**Superseded September 14, 2026:** a subsequent real Live trial again omitted
+initial delegation. Do not resume the acceptance plan below or merge draft
+PR #31 as a fix. Elias agreed [independent parallel body control](parallel-body-control.md)
+in [issue #32](https://github.com/eandualem/avatar-studio/issues/32), for the next
+session. This file preserves the earlier experiment's evidence.
+
 Issue #30 follows the real Live failure after PR #29: Charlie said “Sure, waving”
 without dispatching any movement. The text greeting test from PR #29 did not
 establish Live behavior. These are separate model paths.

@@ -14,7 +14,28 @@ with live speech from OpenAI GPT-Live and eventual lip-sync, inside a Next.js an
 XState app that follows design-studio's architecture. The backend already
 exists: the runtime. The approved body model and procedural rig are complete.
 
-## Current status (Elias, 2026-09-14)
+## Next session: independent parallel body control (Elias, 2026-09-14)
+
+**Start here:** [issue #32](https://github.com/eandualem/avatar-studio/issues/32)
+and [the agreed architecture/handoff](docs/parallel-body-control.md).
+Elias requested documentation now and implementation in the next session when
+he resumes. No implementation or runtime activation belongs to this handoff.
+
+Live will only converse: no tool calls or backend delegation. A separate body
+LLM receives history through each new user utterance and outputs movement tools
+only, with no visible response or narration. The application schedules both
+independently, owns action/cancellation state, and sends quiet engine-confirmed
+body facts to Live where relevant. Preserve procedural motion; animation polish
+is outside this phase. Assistant-runtime collaboration is explicitly available;
+the linked brief lists concrete session, output and context-update contracts.
+
+Issue #30 and draft PR #31 are superseded by this architecture, **not fixed**.
+Latest real Live trial still omitted initial action dispatch. Do not merge #31
+or keep tuning its delegation prompt as the next step. The continuing checkout
+remains `fix/live-action-dispatch` to preserve the running app; the handoff is
+committed there. Read the brief before changing branches or runtime processes.
+
+## Delivered history (earlier milestones; next-session direction above wins)
 
 Live interaction was accepted in PR #13; issue #11 is closed. Elias resumed work
 on animation responsiveness and naturalness in issue #14. Its opt-in Dev test
@@ -98,20 +119,20 @@ runtime processes and their histories are preserved. Use **New conversation**
 for the new Live policy; session IDs do not migrate backend memory. Setup and
 verification are in `docs/expressive-greetings.md`. No new paid Live test was run.
 
-## Live action dispatch follow-up (issue #30)
+## Superseded Live dispatch experiment (issue #30 / draft PR #31)
 
 Elias's real voice trial exposed speech claiming movement with no initial
 backend delegation. Updated code appends the current concise Live policy over
 WebRTC on every new call and waits for its correlated acknowledgment before
 unmuting audio or executing pending tools. No runtime restart or new instance.
 Backend artifact v3 on 7112 and v1 on 7113 reinforces physical greeting work.
-79 tests and type/lint/build pass. Elias confirms explicit voice actions now
-dispatch and typed greetings wave; greeting-only voice completion is still under
-user testing. See `docs/live-action-dispatch.md` for trace evidence and the exact
-next trial. Preserve all runtimes/history; no agent-paid voice trial authorized.
-Draft PR #31 contains the change on `fix/live-action-dispatch`; keep it and issue
-#30 open pending the greeting-only voice check. GitHub's application job could
-not start because of account billing; the local checks above passed.
+79 tests and type/lint/build passed, but the later real Live trial still omitted
+initial greeting/wave delegation. This experiment did not establish reliability.
+See `docs/parallel-body-control.md` and issue #32 for the replacement architecture;
+`docs/live-action-dispatch.md` retains earlier evidence only. Do not resume its
+old greeting-only acceptance plan. Preserve runtimes/history and this unmerged
+branch; no agent-paid voice trial is authorized. GitHub's application job could
+not start because of account billing.
 
 ## Delivered milestone 5: GPT-Live voice
 
