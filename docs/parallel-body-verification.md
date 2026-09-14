@@ -50,8 +50,10 @@ retained on `fix/live-action-dispatch`; it is not part of this merge.
 
 ## Runtime activation
 
-Current routing after the setup correction is text **7112**, body **7114**,
-voice **7115**. See [Live setup recovery](live-setup-recovery.md) for the follow-up
+Current routing is text **7112**, Body **7114**, Voice **7115**. Elias confirmed
+real Voice works. The later [Body Fast trial](body-fast-mode.md) did not confirm
+Fast delivery, so routing stays here; that note also covers current timing UI.
+See [Live setup recovery](live-setup-recovery.md) for the follow-up
 diagnosis and activation evidence. The original activation below is preserved
 as historical evidence; its malformed voice request was found in Elias's trial.
 

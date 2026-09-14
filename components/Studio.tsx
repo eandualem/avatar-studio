@@ -24,6 +24,7 @@ import {
   useMotionLab,
 } from "@/hooks/useStudio";
 import { MotionLab } from "./MotionLab";
+import { BodyTiming } from "./BodyTiming";
 import { VoicePhase } from "@/types/voice";
 
 function Mark({ small = false }: { small?: boolean }) {
@@ -58,18 +59,18 @@ function Workspace() {
   const voiceReady = voice.state === VoicePhase.Active;
   const voiceStatus =
     voice.state === VoicePhase.Connecting
-      ? "Connecting live audio"
+      ? "Voice · Connecting"
       : voice.state === VoicePhase.Closing
-        ? "Ending live conversation"
+        ? "Voice · Ending call"
         : voice.state === VoicePhase.Cancelling
-          ? "Stopping movement"
+          ? "Body · Stopping"
           : voice.data.view?.soundBlocked
-            ? "Enable sound to hear Charlie"
+            ? "Voice · Enable sound"
             : voice.data.view?.speaking
-              ? "Charlie is speaking"
+              ? "Voice · Speaking"
               : voice.data.view?.micMuted
-                ? "Microphone muted"
-                : "Listening live";
+                ? "Voice · Microphone muted"
+                : "Voice · Listening";
   const listening = speech.state === "listening";
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -216,7 +217,7 @@ function Workspace() {
               </label>
               {live ? (
                 <span className="live-heading">
-                  <AudioLines size={18} /> Live conversation
+                  <AudioLines size={18} /> Voice conversation
                 </span>
               ) : (
                 <button
@@ -234,7 +235,7 @@ function Workspace() {
                   className="live-start"
                   onClick={voice.actions.copyMotion}
                 >
-                  {voice.data.copyStatus || "Copy movement details"}
+                  {voice.data.copyStatus || "Copy Body details"}
                 </button>
               )}
             </div>
@@ -295,7 +296,7 @@ function Workspace() {
                 <span className="message-author">
                   {message.role === "user" ? "You" : "Charlie"}
                   {message.source === "voice"
-                    ? " · Live transcript"
+                    ? " · Voice transcript"
                     : message.source === "backend"
                       ? message.orderUncertain
                         ? " · Recovered response · original order unavailable"
@@ -323,6 +324,9 @@ function Workspace() {
           <div ref={bottom} />
         </div>
         <div className="composer-area" hidden={lab.active}>
+          <BodyTiming
+            body={voice.data.view?.body ?? voice.data.savedTrace?.body}
+          />
           {(chat.data.error ||
             speech.data.error ||
             voice.data.view?.warning) && (
@@ -406,7 +410,7 @@ function Workspace() {
                   onClick={voice.actions.copyMotion}
                   disabled={!voiceReady}
                 >
-                  {voice.data.copyStatus || "Copy movement details"}
+                  {voice.data.copyStatus || "Copy Body details"}
                 </button>
               </div>
               <p className="live-note">

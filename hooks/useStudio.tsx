@@ -93,9 +93,9 @@ export function useVoice() {
         if (!trace) return;
         try {
           await navigator.clipboard.writeText(JSON.stringify(trace, null, 2));
-          setCopyStatus("Copied movement details");
+          setCopyStatus("Copied Body details");
         } catch {
-          setCopyStatus("Could not copy movement details");
+          setCopyStatus("Could not copy Body details");
         }
       },
     },

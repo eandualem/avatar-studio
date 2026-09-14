@@ -338,6 +338,59 @@ a {
   color: var(--muted);
   margin: 11px 0 0;
 }
+.body-timing {
+  margin-bottom: 12px;
+  color: #88664f;
+  font-size: 11px;
+}
+.body-timing summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.body-timing > p {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.body-timing ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+}
+.body-timing li {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.body-timing-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.body-timing-title strong {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.body-timing-title span {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.body-timing dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.body-timing dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.body-timing dd {
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
 .conversation-heading h2 {
   font-family: Manrope, var(--font);
   font-size: 28px;
