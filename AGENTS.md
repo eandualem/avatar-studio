@@ -22,7 +22,7 @@ is independent subscription `openai:gpt-5.6-sol`, low reasoning, on 7114. Text
 stays on 7112. Start with [Voice and Body speed](docs/body-fast-mode.md) and
 [issue #36](https://github.com/eandualem/avatar-studio/issues/36).
 
-PR #37 adds Voice/Body labels and an expandable timing view; 100 tests and local
+Merged PR #37 adds Voice/Body labels and an expandable timing view; 100 tests and local
 type/lint/build plus desktop/mobile checks pass. Runtime Fast support is merged
 in PR #127 and isolated on 7116, but the first real trial requested `priority`
 and received `default`. The comparison stopped after two calls; no Fast speedup
@@ -30,7 +30,10 @@ is verified and the app remains on Body 7114. Issue #36 stays open for that
 external tier mismatch. No further model retry or paid Live call was made.
 Preserve every runtime, including 7115/7116, and its in-memory history. Do not
 claim Fast is active merely from health configuration. The detailed note has
-response IDs, timing evidence and the next step.
+response IDs, timing evidence and the next step. The delivered UI reads the
+saved real wave as 901 ms speech wait, 12.3 s full planning, 22 ms start delay
+and 5.0 s motion. Earlier 4.739 s server message timestamps are not a full
+planning stopwatch.
 
 ## Independent parallel body control (issue #32 / PR #33)
 

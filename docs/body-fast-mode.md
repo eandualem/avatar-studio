@@ -11,13 +11,25 @@ so the app was not switched. Issue #36 remains open for verified Fast delivery.
 
 Elias confirmed the real Voice trial works after the setup fix. His requested
 wave was acknowledged promptly and later executed, but the planning delay felt
-long. The runtime’s recorded acceptance and model-response timestamps are about
-**4.739 seconds** apart. The engine receipt reports **18 ms** to its first frame
-and **4.981 seconds** for the wave (requested 4.0 seconds, solver plan 4.969).
-That receipt is on Body 7114, session `d29a028b-00d6-43ea-9fd0-ce61cd25b1a0`,
-on September 14, 2026 at 18:31 UTC. These server timestamps do not measure speech
-recognition or the app’s 900 ms quiet period. Earlier 14.6-second evidence was an
-eight-cycle run, not this wave.
+long. After PR #37 landed, its timing view read the original saved browser trace:
+**901 ms speech wait**, **12.3 seconds planning**, **22 ms start delay**, and
+**5.0 seconds movement**. Three earlier Body decisions display as canceled,
+with no completed planning or movement metric. This inspection only reloaded
+the saved conversation; it did not allocate a call or run another model.
+
+An earlier read compared the runtime's user and model-response timestamps:
+**4.739 seconds** apart. Those message timestamps are not a complete request
+stopwatch and must not be described as full planning duration. The browser's
+12.3-second interval runs from planning admission through the complete tool
+response; it includes generation and request/transport overhead. Do not assign
+the difference to a particular network or runtime stage without evidence.
+
+The engine receipt independently reports **18 ms** to its first frame and
+**4.981 seconds** for the wave (requested 4.0 seconds, solver plan 4.969). Its
+18 ms starts at engine admission, a narrower interval than the browser's 22 ms
+from tool return. That receipt is on Body 7114, session
+`d29a028b-00d6-43ea-9fd0-ce61cd25b1a0`, on September 14, 2026 at 18:31 UTC.
+Earlier 14.6-second evidence was an eight-cycle run, not this wave.
 
 ## Fast mode contract
 
@@ -121,7 +133,10 @@ is connected. The settings and Body/Voice profiles match 7114, including low
 reasoning (4000 budget). The peer and app agent made no paid Voice calls.
 Preserve 7116 for evidence, alongside every previous runtime and its histories.
 
-App PR #37 delivers naming and timing feedback. The runtime peer reviewed the
+App [PR #37](https://github.com/eandualem/avatar-studio/pull/37) merged as
+`80ac3e475a09d242bd49e2b1215292da5f334851`, delivering naming and timing feedback.
+The continuing app checkout was fast-forwarded to main and the delivered UI
+was checked against Elias’s saved real trial on 7140. The runtime peer reviewed the
 measurement boundaries and cancellation/unknown-value handling without blockers.
 All 100 tests, TypeScript, lint, production build and desktop/mobile checks pass.
 GitHub's application job could not start because account billing/spending limits
