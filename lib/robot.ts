@@ -117,5 +117,5 @@ export async function createRobot(
     frame = requestAnimationFrame(render);
   };
   render();
-  return { apply: body.apply, halt: body.halt, dispose };
+  return { apply: body.apply, halt: body.halt, reset: body.reset, dispose };
 }

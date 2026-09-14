@@ -11,6 +11,96 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("resets a running test, discards its late receipt, and stays ready without network calls", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  let finish!: (result: MotionResult) => void;
+  let executionSignal!: AbortSignal;
+  const controller: MotionController = {
+    ready: () => true,
+    pose: restPose,
+    attach: vi.fn(),
+    detach: vi.fn(),
+    stop: vi.fn(),
+    reset: vi.fn(restPose),
+    execute: vi.fn((_motion, signal) => {
+      executionSignal = signal!;
+      return new Promise<MotionResult>((resolve) => {
+        finish = resolve;
+      });
+    }),
+  };
+  const actor = createActor(conversationMachine, {
+    input: { controller },
+  }).start();
+  await waitFor(actor, (s) => s.matches("idle"));
+  const conversation = actor.getSnapshot().context.current;
+  actor.send({ type: "DEV_RESET" });
+  expect(controller.reset).not.toHaveBeenCalled();
+  actor.send({ type: "OPEN_DEV" });
+  actor.send({
+    type: "DEV_RUN",
+    call: {
+      call_id: "move",
+      tool_name: "move_avatar",
+      arguments: motionExamples[1].motion,
+    },
+  });
+  actor.send({ type: "DEV_RESET" });
+  expect(executionSignal.aborted).toBe(true);
+  expect(actor.getSnapshot().matches({ dev: "ready" })).toBe(true);
+  expect(actor.getSnapshot().context.labPose).toEqual(restPose());
+  finish({
+    status: "completed",
+    pose: restPose(),
+    constrained: false,
+    duration: 1,
+  });
+  await Promise.resolve();
+  expect(actor.getSnapshot().context.labReport?.receipt.result).toEqual({
+    status: "reset",
+    pose: restPose(),
+  });
+  actor.send({ type: "DEV_RESET" });
+  expect(controller.reset).toHaveBeenCalledTimes(2);
+  expect(actor.getSnapshot().context.current).toBe(conversation);
+  expect(fetchMock).not.toHaveBeenCalled();
+  actor.stop();
+});
+
+it("cancels physical frames on reset and starts the next motion from the restored pose", async () => {
+  vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout"] });
+  vi.stubGlobal("requestAnimationFrame", (cb: () => void) =>
+    setTimeout(cb, 16),
+  );
+  vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+  let actual = restPose();
+  const controller = createMotionController();
+  controller.attach({
+    apply: (pose) => {
+      actual = structuredClone(pose);
+      return { pose, constrained: false };
+    },
+    reset: () => {
+      actual = restPose();
+      return structuredClone(actual);
+    },
+    dispose: vi.fn(),
+  });
+  const moving = controller.execute(motionExamples[1].motion);
+  await vi.advanceTimersByTimeAsync(400);
+  expect(actual).not.toEqual(restPose());
+  expect(controller.reset!()).toEqual(restPose());
+  expect((await moving).status).toBe("interrupted");
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(actual).toEqual(restPose());
+  expect(controller.pose()).toEqual(actual);
+  const next = controller.execute(motionExamples[0].motion);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect((await next).status).toBe("completed");
+  expect(actual.left).toEqual(restPose().left);
+});
+
 it("uses the real tool executor without network access and reserves motion ownership", async () => {
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);

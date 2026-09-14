@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Play, Square, Copy } from "lucide-react";
+import { Play, Square, Copy, RotateCcw } from "lucide-react";
 import { useMotionLab } from "@/hooks/useStudio";
 import { motionExamples, previewMotion } from "@/lib/motion-lab";
 import { actions } from "@/lib/host-tools";
@@ -55,7 +55,11 @@ export function MotionLab({ ready }: { ready: boolean }) {
   }
   const selected = editable[point];
   const result = lab.report?.receipt.result as
-    (Partial<MotionResult> & { error?: string }) | undefined;
+    | (Partial<Omit<MotionResult, "status">> & {
+        status?: MotionResult["status"] | "reset";
+        error?: string;
+      })
+    | undefined;
   const timing = result?.timing;
   const updateNumber = (path: string[], value: number) => {
     const next = JSON.parse(source);
@@ -186,6 +190,13 @@ export function MotionLab({ ready }: { ready: boolean }) {
         >
           Read pose
         </button>
+        <button
+          disabled={!ready}
+          onClick={lab.reset}
+          title="Stop movement and restore Charlie’s initial standing pose"
+        >
+          <RotateCcw size={14} /> Reset pose
+        </button>
       </div>
       <p className="lab-status" role="status">
         {!ready
@@ -194,11 +205,13 @@ export function MotionLab({ ready }: { ready: boolean }) {
             ? "Running locally… Stop holds the current pose."
             : result?.error
               ? "Call failed. Edit the arguments and retry."
-              : result?.status
-                ? `${result.status === "interrupted" ? "Interrupted" : "Completed"}${result.constrained ? " · constrained; inspect reasons below" : ""}`
-                : lab.report
-                  ? "Current pose captured."
-                  : "Ready. Loading an example does not move Charlie."}
+              : result?.status === "reset"
+                ? "Pose reset. Charlie is ready for another test."
+                : result?.status
+                  ? `${result.status === "interrupted" ? "Interrupted" : "Completed"}${result.constrained ? " · constrained; inspect reasons below" : ""}`
+                  : lab.report
+                    ? "Current pose captured."
+                    : "Ready. Loading an example does not move Charlie."}
       </p>
       {lab.report && (
         <div className="lab-result">

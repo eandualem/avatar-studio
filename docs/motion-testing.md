@@ -8,8 +8,12 @@ body. **Run movement** calls the same `executeTool` validator and motion
 controller as text/live actions, with no model or runtime request.
 
 **Stop** holds the current pose and keeps an interrupted receipt. **Read pose**
-calls `get_pose`. **Return to rest** is an editable example through the solver,
-not a reset that bypasses collision or support. Closing Dev test stops ongoing
+calls `get_pose`. **Reset pose** immediately stops any running test and restores
+the validated initial standing pose, bone transforms, joint solver values and
+velocities, and wrist state. It works after blocked movements without reloading
+and leaves your edited inputs intact. It is a local test control, not an agent
+tool or an animated path back to standing. The receipt records `status: reset`.
+**Return to rest** remains an editable animated example through the solver. Closing Dev test stops ongoing
 movement and restores the conversation. Draft inputs and the last completed
 receipt survive toggling within the page; reload clears them. Chat, live setup,
 dictation and conversation navigation cannot take ownership during a test.
@@ -25,7 +29,7 @@ their previous targets within a sequence; new calls begin at the actual pose.
 
 The preview uses the last read pose; it updates after execution or **Read pose**.
 The **last execution receipt** belongs to its recorded input, even if the editor
-has since changed. **Copy report** includes that input, starting pose, full tool
+has since changed. A reset replaces it with a reset receipt. **Copy report** includes that input, starting pose, full tool
 receipt and local call elapsed time. Reports are local and are not uploaded.
 
 - Requested duration is the last input waypoint time. Planned duration includes
@@ -45,7 +49,7 @@ receipt and local call elapsed time. Reports are local and are not uploaded.
   wrist limits, collision/support rejection and incomplete settling are separate
   reasons. No constraint has been relaxed for Dev test.
 
-For comparisons, first establish the same starting pose, then run identical
+For comparisons, use **Reset pose** to establish the same starting pose, then run identical
 inputs and change one variable at a time. Compare a short head change with a
 full arm raise. A small requested time cannot override the speed ceiling. The
 current quintic interpolation eases to zero velocity at every waypoint, so
@@ -103,6 +107,16 @@ runtime agent identified memory extraction during stream teardown as one
 possible tail, but no run established it as the cause of Elias's observed delay.
 Do not retry physical motion because a result acknowledgement is slow.
 
+## Shorter default timings
+
+Following Elias’s browser trial, all six examples now request one third of
+their original waypoint times: head glance 0.2/0.4s, hand raise 0.6s, wave
+0.6/0.7333/0.8667/1.0s, fingers 0.3333s, crouch 0.5s, and animated return
+0.6667s. Matching profile and movement-skill guidance uses the shorter requests.
+Solver speed limits and settling deadlines are unchanged; compare requested and
+planned times in the receipt. These are requested durations, not a promise that
+a full reach finishes three times faster.
+
 ## Verification, September 14
 
 The six examples ran against the exported GLB at their planned 60Hz timing,
@@ -112,7 +126,7 @@ exclusive ownership, invalid inputs, pose reads, stop, close and late results.
 Motion tests cover speed extension and frame timing. The 55 tests, TypeScript,
 ESLint and production build passed before browser verification.
 
-In the foreground desktop Chrome trial, a requested 1.20s head glance took 1.21s,
+In the original PR #15 foreground desktop Chrome trial, a requested 1.20s head glance took 1.21s,
 with a 28ms first frame, no gaps over 50ms and 1.1ms mean pose-application time.
 A requested 3.00s wave planned 3.16s and took 3.18s, with a 39ms first frame,
 no gaps over 50ms and 1.4ms mean pose-application time. The wave reported speed
@@ -120,3 +134,10 @@ extension and wrist swing limiting. These are single local samples, not a
 benchmark or evidence that every trajectory is smooth. Browser checks also
 covered negative/out-of-range numeric edits, stop receipts, return to rest,
 desktop and 390×844 layouts. No new paid live audio session was started.
+
+The reset follow-up passes 58 tests, TypeScript, ESLint and production build.
+Tests cover restoring a blocked rig and solver state, preventing cancelled
+frames and late results from overwriting reset, and starting a fresh movement
+from the reset pose. All six shortened examples still pass real-skeleton tests.
+Browser verification checks reset during a hand raise, after a blocked target,
+preserved JSON edits, and the 0.6s hand-raise default.

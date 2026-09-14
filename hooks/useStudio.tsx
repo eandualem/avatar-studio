@@ -95,6 +95,7 @@ export function useMotionLab() {
       actor.send({ type: "OPEN_DEV" });
     },
     close: () => actor.send({ type: "CLOSE_DEV" }),
+    reset: () => actor.send({ type: "DEV_RESET" }),
     run: (tool_name: string, args: Pending["arguments"]) =>
       actor.send({
         type: "DEV_RUN",
