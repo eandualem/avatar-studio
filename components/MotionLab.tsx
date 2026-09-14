@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import { Play, Square, Copy, RotateCcw } from "lucide-react";
 import { useMotionLab } from "@/hooks/useStudio";
 import { motionExamples, previewMotion } from "@/lib/motion-lab";
@@ -58,6 +59,9 @@ export function MotionLab({ ready }: { ready: boolean }) {
     | (Partial<Omit<MotionResult, "status">> & {
         status?: MotionResult["status"] | "reset";
         error?: string;
+        screenshot?: string;
+        width?: number;
+        height?: number;
       })
     | undefined;
   const timing = result?.timing;
@@ -171,6 +175,37 @@ export function MotionLab({ ready }: { ready: boolean }) {
             Plan uses the last read pose and current speed limits. Actual
             execution may need up to 3s more to settle.
           </p>
+          {preview.segments?.some((segment) => segment.limits.length) && (
+            <details className="lab-speed-limits" open>
+              <summary>Why a shorter time may not go faster</summary>
+              <p>
+                The slowest channel sets each segment’s duration. Requesting
+                less than its minimum does not increase speed; joint-rate and
+                settling limits also apply.
+              </p>
+              <ol>
+                {preview.segments.map((segment, index) => (
+                  <li key={index}>
+                    Segment {index + 1}: {segment.requestedDuration.toFixed(2)}s
+                    requested → {segment.duration.toFixed(2)}s planned.
+                    {segment.limits.length > 0 && (
+                      <span>
+                        {" "}
+                        Limited by{" "}
+                        {segment.limits
+                          .map(
+                            (limit) =>
+                              `${limit.channel} (${limit.minimumSeconds.toFixed(2)}s minimum)`,
+                          )
+                          .join(", ")}
+                        .
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
         </div>
       )}
       <div className="lab-actions">
@@ -197,6 +232,12 @@ export function MotionLab({ ready }: { ready: boolean }) {
         >
           <RotateCcw size={14} /> Reset pose
         </button>
+        <button
+          disabled={!ready || lab.running}
+          onClick={() => lab.run("capture_avatar", {})}
+        >
+          Capture avatar
+        </button>
       </div>
       <p className="lab-status" role="status">
         {!ready
@@ -210,11 +251,23 @@ export function MotionLab({ ready }: { ready: boolean }) {
                 : result?.status
                   ? `${result.status === "interrupted" ? "Interrupted" : "Completed"}${result.constrained ? " · constrained; inspect reasons below" : ""}`
                   : lab.report
-                    ? "Current pose captured."
+                    ? result?.screenshot
+                      ? "Fresh avatar image captured."
+                      : "Current pose captured."
                     : "Ready. Loading an example does not move Charlie."}
       </p>
       {lab.report && (
         <div className="lab-result">
+          {result?.screenshot && (
+            <Image
+              src={result.screenshot}
+              alt="Fresh capture of Charlie’s current pose, without chat or desktop"
+              width={result.width || 512}
+              height={result.height || 512}
+              unoptimized
+              className="lab-avatar-capture"
+            />
+          )}
           <div className="lab-result-heading">
             <strong>Last execution receipt</strong>
             <button

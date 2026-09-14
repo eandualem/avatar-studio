@@ -1063,3 +1063,19 @@ a {
     gap: 9px;
   }
 }
+.lab-speed-limits {
+  flex-basis: 100%;
+}
+.lab-speed-limits ol {
+  padding-left: 18px;
+  line-height: 1.7;
+}
+.lab-avatar-capture {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: contain;
+  margin: 0 auto 12px;
+  border-radius: 8px;
+}

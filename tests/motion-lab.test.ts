@@ -3,12 +3,70 @@ import { createActor, waitFor } from "xstate";
 import { conversationMachine } from "@/machines/conversationMachine";
 import { restPose, createMotionController } from "@/lib/motion";
 import { motionExamples, previewMotion } from "@/lib/motion-lab";
-import { hostContext } from "@/lib/host-tools";
+import { hostContext, executeTool } from "@/lib/host-tools";
 import type { MotionController, MotionResult } from "@/types/avatar";
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+it("captures only fresh frames, clears failed captures and does not move during inspection", async () => {
+  const controller = createMotionController();
+  const apply = vi.fn((pose) => ({ pose, constrained: false }));
+  let frame = 0;
+  let broken = false;
+  controller.attach({
+    apply,
+    dispose: vi.fn(),
+    capture: () => {
+      if (broken) throw new Error("context lost");
+      return {
+        dataUri: `data:image/jpeg;base64,frame${++frame}`,
+        width: 320,
+        height: 512,
+        capturedAt: new Date().toISOString(),
+      };
+    },
+  });
+  const first = hostContext(controller);
+  const receipt = await executeTool(
+    { tool_name: "capture_avatar", call_id: "fresh", arguments: {} },
+    controller,
+    new AbortController().signal,
+  );
+  expect(first.attachments).toMatchObject([
+    { purpose: "screenshot", data_uri: "data:image/jpeg;base64,frame1" },
+  ]);
+  expect(receipt.result).toMatchObject({
+    screenshot: "data:image/jpeg;base64,frame2",
+    pose: restPose(),
+  });
+  expect(apply).toHaveBeenCalledOnce();
+  broken = true;
+  expect(hostContext(controller).attachments).toEqual([]);
+  expect(
+    (
+      await executeTool(
+        { tool_name: "capture_avatar", call_id: "failed", arguments: {} },
+        controller,
+        new AbortController().signal,
+      )
+    ).outcome,
+  ).toBe("failed");
+  const abort = new AbortController();
+  abort.abort();
+  broken = false;
+  expect(
+    (
+      await executeTool(
+        { tool_name: "capture_avatar", call_id: "cancelled", arguments: {} },
+        controller,
+        abort.signal,
+      )
+    ).outcome,
+  ).toBe("failed");
+  expect(frame).toBe(2);
 });
 
 it("resets a running test, discards its late receipt, and stays ready without network calls", async () => {

@@ -1,4 +1,8 @@
-import { motionSchema, type MotionController } from "@/types/avatar";
+import {
+  motionSchema,
+  type MotionController,
+  type AvatarSnapshot,
+} from "@/types/avatar";
 import type { Pending, ToolReceipt, Message } from "@/types/conversation";
 import { restPose } from "./motion";
 import movementSkill from "@/profiles/skills/charlie-motion/SKILL.md?raw";
@@ -130,16 +134,42 @@ export const actions = [
     },
   },
   {
+    name: "capture_avatar",
+    description:
+      "Capture a fresh image of Charlie's current rendered pose, without the chat or desktop. Then use look_at_screen to inspect it before judging or improving a pose. This captures only; it never moves the body.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "get_pose",
     description:
       "Read the actual current whole-body pose, including feet, pelvis, torso, hands and head.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 ];
+export function captureAvatar(controller: MotionController): {
+  snapshot?: AvatarSnapshot;
+  error?: string;
+} {
+  try {
+    const snapshot = controller.capture?.();
+    if (!snapshot)
+      return {
+        error:
+          "Avatar capture unavailable; use capture_avatar once the renderer is ready.",
+      };
+    return { snapshot };
+  } catch {
+    return {
+      error:
+        "Avatar capture failed. No fresh image is available; do not infer appearance from numeric pose alone.",
+    };
+  }
+}
 export function hostContext(
   controller: MotionController,
   visibleHistory?: Message[],
 ) {
+  const capture = captureAvatar(controller);
   return {
     version: 1,
     host: { name: "avatar-studio", kind: "browser", version: "0.2.0" },
@@ -172,10 +202,31 @@ export function hostContext(
         motion_guidance:
           "For a shallow crouch keep feet fixed, lower pelvis.offset.y about -0.07, move pelvis.offset.z about -0.055, bend torso about 0.2. For a foot lift, first shift pelvis.offset.x about ±0.09 toward the foot staying planted, then raise the opposite ankle slowly. These are examples for composing targets, not gesture presets. Inspect results and use modest reaches.",
         movement_skill: movementSkill,
+        visual_feedback: capture.snapshot
+          ? {
+              available: true,
+              captured_at: capture.snapshot.capturedAt,
+              scope:
+                "Avatar canvas only, from the current camera. Use look_at_screen to inspect; use capture_avatar for a fresh frame.",
+            }
+          : { available: false, error: capture.error },
       },
       state: { avatar_ready: controller.ready() },
     },
     actions: controller.ready() ? actions : [],
+    attachments: capture.snapshot
+      ? [
+          {
+            kind: "image",
+            purpose: "screenshot",
+            name: "Charlie current pose",
+            description:
+              "Only the rendered avatar, from the user's current camera. Captured " +
+              capture.snapshot.capturedAt,
+            data_uri: capture.snapshot.dataUri,
+          },
+        ]
+      : [],
     captured_at: new Date().toISOString(),
   };
 }
@@ -191,6 +242,22 @@ export async function executeTool(
         : pending.arguments;
     if (pending.tool_name === "get_pose")
       return { result: { pose: controller.pose() } };
+    if (pending.tool_name === "capture_avatar") {
+      if (signal.aborted) throw new Error("Avatar capture cancelled.");
+      const { snapshot, error } = captureAvatar(controller);
+      if (!snapshot) throw new Error(error);
+      return {
+        result: {
+          screenshot: snapshot.dataUri,
+          captured_at: snapshot.capturedAt,
+          width: snapshot.width,
+          height: snapshot.height,
+          pose: controller.pose(),
+          message:
+            "Fresh avatar-only image captured. Use look_at_screen to inspect it.",
+        },
+      };
+    }
     if (pending.tool_name !== "move_avatar")
       throw new Error("Unsupported avatar tool: " + pending.tool_name);
     const motion = motionSchema.parse(args);

@@ -113,7 +113,7 @@ describe("constrained motion on the shipped skeleton", () => {
   });
   it.each(motionExamples)(
     "executes the Dev test example $name at its planned timing",
-    async ({ motion }) => {
+    async ({ name, motion }) => {
       const b = await body();
       const plan = planMotion(b.rig.apply(restPose()).pose, motion);
       const duration = plan.at(-1)!.start + plan.at(-1)!.duration;
@@ -145,6 +145,22 @@ describe("constrained motion on the shipped skeleton", () => {
       near(actual.pose.right.position, target.right.position, 0.015);
       near(actual.pose.pelvis.offset, target.pelvis.offset, 0.015);
       expect(actual.pose.head).toEqual(target.head);
+      if (name === "Kicking stance") {
+        const diagnostics = b.rig.diagnostics();
+        expect(actual.pose.rightFoot.position[1]).toBeGreaterThan(0.39);
+        expect(actual.pose.rightFoot.position[0]).toBeLessThan(-0.23);
+        expect(actual.pose.rightFoot.position[2]).toBeGreaterThan(0.23);
+        expect(actual.pose.left.position[0]).toBeGreaterThan(0.4);
+        expect(
+          diagnostics.joints.find((j) => j.joint === "RightLeg")!.value,
+        ).toBeLessThan(0.35);
+        expect(Math.max(...diagnostics.soles[0].map((p) => p[1]))).toBeLessThan(
+          0.025,
+        );
+        expect(
+          Math.min(...diagnostics.soles[1].map((p) => p[1])),
+        ).toBeGreaterThan(0.2);
+      }
     },
   );
   it("crouches with bent knees and flat planted boots, then stands again", async () => {

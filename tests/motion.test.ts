@@ -14,6 +14,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("motion composition", () => {
+  it("explains identical timing below the hand-direction and travel floors", () => {
+    const waypoint = {
+      left: {
+        position: [0.29, 0.83, 0.09] as [number, number, number],
+        direction: [0, 1, 0] as [number, number, number],
+      },
+    };
+    const fast = planMotion(restPose(), {
+      waypoints: [{ time: 0.2, ...waypoint }],
+    })[0];
+    const slower = planMotion(restPose(), {
+      waypoints: [{ time: 0.6, ...waypoint }],
+    })[0];
+    expect(fast.duration).toBeCloseTo(slower.duration);
+    expect(fast.duration).toBeCloseTo((Math.PI * 1.875) / 3);
+    expect(fast.limits[0].channel).toBe("left hand direction");
+    expect(fast.limits.some((l) => l.channel === "left hand travel")).toBe(
+      true,
+    );
+    expect(
+      planMotion(restPose(), { waypoints: [{ time: 3, ...waypoint }] })[0]
+        .limits,
+    ).toEqual([]);
+  });
   it("preserves leg and torso channels and limits rotation timing", () => {
     const plan = planMotion(restPose(), {
       waypoints: [

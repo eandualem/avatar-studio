@@ -94,67 +94,82 @@ export function planMotion(start: Pose, motion: Motion) {
     if (point.torso) next.torso = point.torso;
     if (point.shoulders) next.shoulders = point.shoulders;
     if (point.head) Object.assign(next.head, point.head);
-    const distance = Math.max(
-      ...(["left", "right"] as const).map((s) =>
-        new Vector3(...previous[s].position).distanceTo(
-          new Vector3(...next[s].position),
+    const requestedDuration = point.time - requestedTime;
+    const floors: { channel: string; minimumSeconds: number }[] = [];
+    const bound = (channel: string, change: number, rate: number) =>
+      floors.push({
+        channel,
+        minimumSeconds: (Math.abs(change) * 1.875) / rate,
+      });
+    for (const side of ["left", "right"] as const) {
+      bound(
+        `${side} hand travel`,
+        new Vector3(...previous[side].position).distanceTo(
+          new Vector3(...next[side].position),
         ),
-      ),
-    );
-    const turn = Math.max(
-      Math.abs(next.head.yaw - previous.head.yaw),
-      Math.abs(next.head.nod - previous.head.nod),
-      Math.abs(next.head.tilt - previous.head.tilt),
-    );
-    const finger = Math.max(
-      ...(["left", "right"] as const).flatMap((s) =>
-        next[s].curls.map((v, i) => Math.abs(v - previous[s].curls[i])),
-      ),
-    );
-    const directionAngle = Math.max(
-      ...(["left", "right"] as const).map((s) =>
-        new Vector3(...previous[s].direction).angleTo(
-          new Vector3(...next[s].direction),
+        0.45,
+      );
+      bound(
+        `${side} hand direction`,
+        new Vector3(...previous[side].direction).angleTo(
+          new Vector3(...next[side].direction),
         ),
-      ),
-    );
-    const duration = Math.max(
-      point.time - requestedTime,
-      (distance * 1.875) / 0.45,
-      (turn * 1.875) / 0.8,
-      (finger * 1.875) / 2,
-      (directionAngle * 1.875) / 3,
-      ...(["leftFoot", "rightFoot"] as const).map(
-        (s) =>
-          (new Vector3(...previous[s].position).distanceTo(
-            new Vector3(...next[s].position),
-          ) *
-            1.875) /
-          0.18,
-      ),
-      (new Vector3(...previous.pelvis.offset).distanceTo(
+        3,
+      );
+      bound(
+        `${side} fingers`,
+        Math.max(
+          ...next[side].curls.map((v, i) =>
+            Math.abs(v - previous[side].curls[i]),
+          ),
+        ),
+        2,
+      );
+      bound(`${side} palm roll`, next[side].roll - previous[side].roll, 2);
+      bound(
+        `${side} shoulder`,
+        next.shoulders[side] - previous.shoulders[side],
+        0.5,
+      );
+    }
+    for (const key of ["yaw", "nod", "tilt"] as const)
+      bound(`head ${key}`, next.head[key] - previous.head[key], 0.8);
+    for (const side of ["leftFoot", "rightFoot"] as const) {
+      bound(
+        `${side} travel`,
+        new Vector3(...previous[side].position).distanceTo(
+          new Vector3(...next[side].position),
+        ),
+        0.18,
+      );
+      for (const key of ["yaw", "pitch"] as const)
+        bound(`${side} ${key}`, next[side][key] - previous[side][key], 0.5);
+    }
+    bound(
+      "pelvis travel",
+      new Vector3(...previous.pelvis.offset).distanceTo(
         new Vector3(...next.pelvis.offset),
-      ) *
-        1.875) /
-        0.12,
-      ...(["bend", "twist", "lean"] as const).map(
-        (k) => (Math.abs(next.torso[k] - previous.torso[k]) * 1.875) / 0.5,
       ),
-      (Math.abs(next.pelvis.yaw - previous.pelvis.yaw) * 1.875) / 0.5,
-      ...(["left", "right"] as const).map(
-        (s) =>
-          (Math.abs(next.shoulders[s] - previous.shoulders[s]) * 1.875) / 0.5,
-      ),
-      ...(["left", "right"] as const).map(
-        (s) => (Math.abs(next[s].roll - previous[s].roll) * 1.875) / 2,
-      ),
-      ...(["leftFoot", "rightFoot"] as const).flatMap((s) =>
-        (["yaw", "pitch"] as const).map(
-          (k) => (Math.abs(next[s][k] - previous[s][k]) * 1.875) / 0.5,
-        ),
-      ),
+      0.12,
     );
-    const segment = { from: previous, to: next, start: elapsed, duration };
+    bound("pelvis yaw", next.pelvis.yaw - previous.pelvis.yaw, 0.5);
+    for (const key of ["bend", "twist", "lean"] as const)
+      bound(`torso ${key}`, next.torso[key] - previous.torso[key], 0.5);
+    const duration = Math.max(
+      requestedDuration,
+      ...floors.map((f) => f.minimumSeconds),
+    );
+    const limits = floors
+      .filter((f) => f.minimumSeconds > requestedDuration + 0.001)
+      .sort((a, b) => b.minimumSeconds - a.minimumSeconds);
+    const segment = {
+      from: previous,
+      to: next,
+      start: elapsed,
+      duration,
+      requestedDuration,
+      limits,
+    };
     elapsed += duration;
     requestedTime = point.time;
     previous = next;
@@ -169,6 +184,7 @@ export function createMotionController(): MotionController {
   return {
     ready: () => !!driver,
     pose: () => structuredClone(current),
+    capture: () => driver?.capture?.(),
     attach(value) {
       cancel?.();
       driver?.dispose();
@@ -242,6 +258,11 @@ export function createMotionController(): MotionController {
               maxFrameGapMs,
               meanApplyMs: frames ? totalApplyMs / frames : 0,
               maxApplyMs,
+              segments: segments.map((segment) => ({
+                requestedSeconds: segment.requestedDuration,
+                plannedSeconds: segment.duration,
+                limits: segment.limits,
+              })),
             },
           });
         };
