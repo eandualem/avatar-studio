@@ -117,5 +117,29 @@ export async function createRobot(
     frame = requestAnimationFrame(render);
   };
   render();
-  return { apply: body.apply, halt: body.halt, reset: body.reset, dispose };
+  return {
+    apply: body.apply,
+    halt: body.halt,
+    reset: body.reset,
+    dispose,
+    capture: () => {
+      // Render synchronously before readback: no preserveDrawingBuffer or desktop capture.
+      renderer.render(scene, camera);
+      const output = document.createElement("canvas");
+      const scale = Math.min(1, 512 / Math.max(canvas.width, canvas.height));
+      output.width = Math.max(1, Math.round(canvas.width * scale));
+      output.height = Math.max(1, Math.round(canvas.height * scale));
+      const context = output.getContext("2d");
+      if (!context) throw new Error("Avatar image capture is unavailable.");
+      context.fillStyle = "#f2ede4";
+      context.fillRect(0, 0, output.width, output.height);
+      context.drawImage(canvas, 0, 0, output.width, output.height);
+      return {
+        dataUri: output.toDataURL("image/jpeg", 0.85),
+        width: output.width,
+        height: output.height,
+        capturedAt: new Date().toISOString(),
+      };
+    },
+  };
 }

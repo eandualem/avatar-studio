@@ -30,7 +30,7 @@ VOICE__MODEL=gpt-live-1 \
 VOICE__MAX_SESSIONS=1 \
 VOICE__MAX_DURATION_SECONDS=300 \
 VOICE__INSTRUCTIONS="$(cat "$AVATAR_STUDIO_PATH/profiles/live-instructions.md")" \
-TOOLS__BUILTIN_TOOLS='["time"]' \
+TOOLS__BUILTIN_TOOLS='["time","screen"]' \
 TOOLS__PROVIDER_CAPABILITIES='[]' \
 ASSISTANT__ENABLE_WORKING_MEMORY=false \
 uv run assistant-runtime serve --host 127.0.0.1 --port 7110 --no-replace
@@ -114,6 +114,15 @@ keepalive close. Browser crashes or a lost allocation response cannot guarantee
 provider closure. Runtime duration limits and usage inspection bound that case.
 
 ## Transcript and visual limits
+
+The host supplies a fresh, at-most-512px image of the rendered avatar on call
+creation and context updates before tool results. The backend can request
+`capture_avatar`, then use its built-in `look_at_screen` to inspect the image.
+The capture includes only the WebGL canvas, never chat, microphone video or the
+desktop. GPT-Live delegates visual inspection to the backend; this is not a live
+video feed to the voice model. Enable the `screen` built-in as shown above.
+Context updates replace the full host context and do not alter an already
+running backend turn, so an explicit capture provides a fresh view on demand.
 
 Spoken fragments and full backend answers are labelled separately. Backend text
 deltas accumulate under the assistant message identity across host-tool

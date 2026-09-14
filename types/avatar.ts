@@ -132,7 +132,18 @@ export type MotionResult = {
     maxFrameGapMs: number;
     meanApplyMs: number;
     maxApplyMs: number;
+    segments?: {
+      requestedSeconds: number;
+      plannedSeconds: number;
+      limits: { channel: string; minimumSeconds: number }[];
+    }[];
   };
+};
+export type AvatarSnapshot = {
+  dataUri: string;
+  width: number;
+  height: number;
+  capturedAt: string;
 };
 export type RigDriver = {
   apply: (
@@ -147,6 +158,7 @@ export type RigDriver = {
   dispose: () => void;
   halt?: () => void;
   reset?: () => Pose;
+  capture?: () => AvatarSnapshot;
 };
 export interface MotionController {
   attach(driver: RigDriver): void;
@@ -155,5 +167,6 @@ export interface MotionController {
   pose(): Pose;
   stop(): void;
   reset?(): Pose;
+  capture?(): AvatarSnapshot | undefined;
   execute(motion: Motion, signal?: AbortSignal): Promise<MotionResult>;
 }

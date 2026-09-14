@@ -156,6 +156,56 @@ afterEach(() => {
 });
 
 describe("live audio lifecycle and delegated motion", () => {
+  it("refreshes avatar screenshots before voice tool results and never allocates an extra call for capture", async () => {
+    const motion = controller();
+    let sequence = 0;
+    motion.capture = () => ({
+      dataUri: `data:image/jpeg;base64,frame${++sequence}`,
+      capturedAt: new Date().toISOString(),
+      width: 320,
+      height: 512,
+    });
+    const client = new VoiceClient("session", motion);
+    await client.start();
+    const allocation = vi
+      .mocked(voiceRequest)
+      .mock.calls.find(([path]) => path === "calls")!;
+    expect(allocation[2]).toMatchObject({
+      host_context: {
+        attachments: [
+          { purpose: "screenshot", data_uri: "data:image/jpeg;base64,frame1" },
+        ],
+      },
+    });
+    client.receive(
+      event("delegation", {
+        id: "visual",
+        status: "pending_host",
+        pending_tool_call: {
+          tool_name: "capture_avatar",
+          call_id: "capture",
+          arguments: {},
+        },
+      }),
+    );
+    await flush();
+    const calls = vi.mocked(voiceRequest).mock.calls;
+    const patch = calls.findIndex(([path]) => path.endsWith("/context"));
+    const receipt = calls.findIndex(([path]) => path.endsWith("/tool-result"));
+    expect(patch).toBeGreaterThan(-1);
+    expect(receipt).toBeGreaterThan(patch);
+    expect(calls[patch][2]).toMatchObject({
+      host_context: {
+        attachments: [{ data_uri: "data:image/jpeg;base64,frame3" }],
+      },
+    });
+    expect(calls[receipt][2]).toMatchObject({
+      tool_result: { screenshot: "data:image/jpeg;base64,frame2" },
+    });
+    expect(motion.execute).not.toHaveBeenCalled();
+    expect(calls.filter(([path]) => path === "calls")).toHaveLength(1);
+    await client.end();
+  });
   it("recovers blocked playback and bases speaking on audible media rather than server status", async () => {
     let frame!: FrameRequestCallback;
     vi.stubGlobal(

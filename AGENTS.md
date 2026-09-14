@@ -25,12 +25,19 @@ Preserve Charlie and the approved layout. Keep motion flexible rather than
 introducing an agent gesture menu; tune the solver only from measured evidence.
 
 Current workflow and verification are in `docs/motion-testing.md`. Backend motion
-guidance travels in host context; the revised Live prompt requires a coordinated
-voice-runtime reload before it takes effect. Preserve existing runtime histories.
-Issue #16 adds a direct Reset pose control and divides existing example times
+guidance travels in host context. The revised Live prompt is loaded on voice
+runtime 7110. Preserve existing runtime histories; a launcher edit unexpectedly
+triggered 7100's broad Python reloader on September 14 (incident in that document).
+Issue #16 added a direct Reset pose control and divided existing example times
 by three following Elias’s trial. Reset restores the initial rig and solver
 state without reloading. Solver speed limits remain active. Elias can test
 motions and share receipts to guide further animation changes.
+
+Issue #18 adds named timing floors, avatar-only snapshots and a diagonal kicking
+stance. Charlie can call `capture_avatar`, then runtime `look_at_screen`; enable
+the `screen` built-in on both runtimes. Text vision is verified against standing
+and kicking poses; voice context/result ordering is tested with synthetic
+transport. Vision can misread foreshortened joints: compare image and actual pose.
 
 ## Delivered milestone 5: GPT-Live voice
 

@@ -81,6 +81,37 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
       },
     },
     {
+      name: "Kicking stance",
+      hint: "Reset first. Shift onto the left foot, lift the right knee, then extend the leg forward with the left arm outstretched. Holds the stance. Static support and joint limits can shorten the kick; this is a pose, not a dynamic strike.",
+      motion: {
+        waypoints: [
+          {
+            time: 0.5,
+            pelvis: { offset: [0.1, -0.02, -0.03], yaw: -0.35 },
+            torso: { bend: -0.12, twist: 0.15, lean: 0 },
+            left: { position: [0.42, 0.69, 0.07], direction: [1, 0, 0] },
+            right: { position: [-0.23, 0.64, 0.16] },
+          },
+          {
+            time: 1,
+            rightFoot: {
+              position: [-0.05, 0.26, 0.15],
+              yaw: -0.3,
+              pitch: -0.3,
+            },
+          },
+          {
+            time: 1.5,
+            rightFoot: {
+              position: [-0.28, 0.42, 0.28],
+              yaw: -0.3,
+              pitch: -0.4,
+            },
+          },
+        ],
+      },
+    },
+    {
       name: "Return to rest",
       hint: "Requests the standing rest pose through the same solver; it does not teleport or bypass constraints. From a blocked pose, adjust the path first.",
       motion: { waypoints: [{ time: 2 / 3, ...restPose() }] },

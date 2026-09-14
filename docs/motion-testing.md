@@ -13,7 +13,8 @@ the validated initial standing pose, bone transforms, joint solver values and
 velocities, and wrist state. It works after blocked movements without reloading
 and leaves your edited inputs intact. It is a local test control, not an agent
 tool or an animated path back to standing. The receipt records `status: reset`.
-**Return to rest** remains an editable animated example through the solver. Closing Dev test stops ongoing
+**Capture avatar** takes a fresh image of only the rendered robot and shows it
+below the controls. It does not contact a model. **Return to rest** remains an editable animated example through the solver. Closing Dev test stops ongoing
 movement and restores the conversation. Draft inputs and the last completed
 receipt survive toggling within the page; reload clears them. Chat, live setup,
 dictation and conversation navigation cannot take ownership during a test.
@@ -93,11 +94,11 @@ automatic pending-host commentary or forward backend text deltas into Live.
 An HTTP acknowledgement or accepted result is not proof of audible speech.
 
 The revised `profiles/live-instructions.md` encourages prompt delegation and a
-brief acknowledgement while work runs. **This Live prompt change is staged for
-the next coordinated voice-runtime restart.** `VOICE__INSTRUCTIONS` is frozen at
-service startup; editing the file or PATCHing host context does not activate it.
-Neither runtime instance nor its model, thinking budget, or memory settings was
-changed for this feature.
+brief acknowledgement while work runs. It was loaded when the dedicated voice
+runtime on 7110 was started with screen support on September 14.
+`VOICE__INSTRUCTIONS` is frozen at service startup; editing the file or PATCHing
+host context does not activate it. Backend movement/visual guidance in host
+context updates without restarting the runtime.
 
 Direct-test receipts do not measure delegation/backend latency. In a subsequent
 live investigation, correlate delegation/tool IDs and locally timestamp backend
@@ -141,3 +142,69 @@ frames and late results from overwriting reset, and starting a fresh movement
 from the reset pose. All six shortened examples still pass real-skeleton tests.
 Browser verification checks reset during a hand raise, after a blocked target,
 preserved JSON edits, and the 0.6s hand-raise default.
+
+## Why 0.6s and 0.2s can look identical
+
+The planner takes the maximum of the requested segment time and each channel's
+minimum time. Its quintic easing has a peak speed multiplier of 1.875. For the
+hand-raise example from reset, the hand direction turns through π radians at a
+3 rad/s limit: π × 1.875 / 3 = **1.9635 seconds**. Hand travel also imposes a
+minimum. Both 0.6s and 0.2s are below these floors and produce the same plan.
+Joint-rate limits and up to three seconds of settling can extend actual motion
+further. The preview now names each limiting channel; execution receipts record
+per-segment requested/planned seconds and channel minimums in `timing.segments`.
+These diagnostics do not change the limits. Faster full-range movement requires
+measured solver/rate tuning; smaller movements can finish sooner.
+
+## Fresh visual feedback and a kicking stance
+
+The app previously sent numeric poses but no image. `look_at_screen` could not
+inspect the avatar without one. The renderer now captures a fresh frame directly
+from the avatar canvas, at most 512px, without chat, desktop or camera video.
+A synchronous render before readback avoids blank frames without enabling
+`preserveDrawingBuffer`. A capture failure is explicit and sends no cached image.
+
+New text turns, tool continuations, voice creation and full voice-context PATCHes
+carry one canonical `host_context.attachments` screenshot. The runtime's built-in
+`look_at_screen` exposes it on demand. `capture_avatar` also allows the backend to
+request a fresh frame; its result contains an image and actual pose. Context is
+refreshed before returning a voice tool result, since the runtime prefers the
+context screenshot to a nested result screenshot. GPT-Live delegates inspection
+to the backend; it does not receive a live visual stream. Setup instructions now
+enable `TOOLS__BUILTIN_TOOLS='["time","screen"]'`.
+
+Choose **Kicking stance** after **Reset pose**. It shifts weight over the left
+foot, lifts the right knee and extends the leg diagonally forward while extending
+the left arm. The diagonal target improves readability from the approved frontal
+camera. It is a held stance with static support checks, not a dynamic strike.
+The editable example and movement skill use the same targets.
+
+![Charlie holding the verified diagonal kicking stance](images/kicking-stance.jpg)
+
+In the exported-rig 60Hz probe, the raised ankle reached roughly 0.424 normalized
+height and 0.250 forward; the knee retained about 0.214 radians of flexion. The
+left sole stayed planted, the right sole stayed clear, and collision/support
+checks passed every frame. Wrist and right-side joint constraints still appear
+in the receipt: the solver does not exactly reach every requested foot angle.
+
+Real text trials recorded `capture_avatar` followed by `look_at_screen` and
+correctly distinguished standing from a changed kicking pose. The model also
+misread the first, more frontal kick as a strongly bent knee despite the numeric
+joint measurement showing near extension. Visual feedback is useful evidence,
+not infallible anatomy measurement; this prompted the clearer diagonal example.
+Transport tests verify fresh images on text continuation and voice PATCH-before-
+result ordering, capture failure and cancellation. No paid voice call was started
+for this follow-up; live audio visual inspection still needs a user trial.
+
+The dedicated voice runtime on 7110 is healthy with `look_at_screen` enabled and
+zero calls at setup. Its launcher update unexpectedly triggered the broad Python
+reloader on text runtime 7100 at 10:53:39 local time. The runtime agent reported
+this incident; prior in-memory histories cannot be verified as surviving, while
+browser-held transcripts remain. Both services recovered and text vision was
+verified afterward. Avoid editing Python launchers inside a watched runtime tree.
+
+This follow-up passes 62 tests, TypeScript, ESLint, skill validation and the
+production build. Browser checks confirm identical 1.96s plans for 0.6s and 0.2s
+hand raises, fresh canvas images, a clearer diagonal kick, and controls/capture
+without horizontal overflow at 390×844. The committed image is from the actual
+browser renderer with the final example targets.

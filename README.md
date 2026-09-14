@@ -26,7 +26,7 @@ and a funded model provider. Point it to this repository's profile:
 
 ```bash
 ASSISTANT__PROFILE=/absolute/path/to/avatar-studio/profiles/avatar-studio.toml \
-TOOLS__BUILTIN_TOOLS='["time"]' \
+TOOLS__BUILTIN_TOOLS='["time","screen"]' \
 TOOLS__PROVIDER_CAPABILITIES='[]' \
 ASSISTANT__ENABLE_WORKING_MEMORY=false \
 assistant-runtime serve --host 127.0.0.1 --port 7100 --no-replace
@@ -55,6 +55,9 @@ editable example, tweak waypoint numbers or JSON, and run the same tool the
 assistant uses. Read the pose, stop a movement, reset Charlie instantly for the
 next test, and copy its input/result with
 timing and constraint feedback. Close Dev test to return to conversation.
+The timing preview names the channels imposing a minimum duration. **Kicking
+stance** demonstrates a supported leg extension; **Capture avatar** previews the
+fresh avatar-only images available to Charlie for visual inspection.
 See [movement testing and guidance](docs/motion-testing.md).
 
 - Approved 65-bone robot with all 134 rigid shell pieces, exported as GLB.

@@ -6,6 +6,7 @@ import type { MotionController } from "@/types/avatar";
 
 afterEach(() => vi.unstubAllGlobals());
 it("performs a pending call once, returns its receipt, and updates the same assistant message", async () => {
+  let capture = 0;
   const execute = vi.fn(async () => ({
     status: "completed" as const,
     pose: restPose(),
@@ -19,6 +20,12 @@ it("performs a pending call once, returns its receipt, and updates the same assi
     stop: vi.fn(),
     attach: vi.fn(),
     detach: vi.fn(),
+    capture: () => ({
+      dataUri: `data:image/jpeg;base64,frame${++capture}`,
+      capturedAt: new Date().toISOString(),
+      width: 320,
+      height: 512,
+    }),
   };
   const pending = {
     tool_name: "move_avatar",
@@ -59,6 +66,13 @@ it("performs a pending call once, returns its receipt, and updates the same assi
   expect(continuation.tool_call_id).toBe("motion-1");
   expect(continuation.tool_result.status).toBe("completed");
   expect(continuation.content).toBe("");
+  expect(
+    JSON.parse(fetchMock.mock.calls[0][1].body).host_context.attachments[0]
+      .data_uri,
+  ).toBe("data:image/jpeg;base64,frame1");
+  expect(continuation.host_context.attachments).toMatchObject([
+    { purpose: "screenshot", data_uri: "data:image/jpeg;base64,frame2" },
+  ]);
   expect(actor.getSnapshot().context.current.messages).toHaveLength(2);
   expect(actor.getSnapshot().context.current.messages[1].content).toBe(
     "Hello! What is on your mind?",
