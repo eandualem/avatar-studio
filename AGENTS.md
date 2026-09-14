@@ -17,16 +17,18 @@ exists: the runtime. The approved body model and procedural rig are complete.
 ## Current status (Elias, 2026-09-14)
 
 Live interaction was accepted in PR #13; issue #11 is closed. Elias resumed work
-on animation responsiveness and naturalness in issue #14. Add an opt-in Dev test
-panel near Talk live for direct validated tool calls, editable numeric/JSON
-waypoints, actual pose and timing/constraint feedback. Supply movement guidance
-to the assistant and clarify concurrent speech/actions with assistant-runtime.
+on animation responsiveness and naturalness in issue #14. Its opt-in Dev test
+panel near Talk live provides direct validated tool calls, editable numeric/JSON
+waypoints, actual pose and timing/constraint feedback. Movement guidance is
+supplied to the assistant; assistant-runtime confirmed concurrent speech/actions.
 Preserve Charlie and the approved layout. Keep motion flexible rather than
 introducing an agent gesture menu; tune the solver only from measured evidence.
 
 Current workflow and verification are in `docs/motion-testing.md`. Backend motion
 guidance travels in host context; the revised Live prompt requires a coordinated
 voice-runtime reload before it takes effect. Preserve existing runtime histories.
+After delivery, Elias can test motions and share receipts to guide the next
+animation changes; no further solver or runtime tuning is underway.
 
 ## Delivered milestone 5: GPT-Live voice
 
