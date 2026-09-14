@@ -109,6 +109,9 @@ Backend artifact v3 on 7112 and v1 on 7113 reinforces physical greeting work.
 dispatch and typed greetings wave; greeting-only voice completion is still under
 user testing. See `docs/live-action-dispatch.md` for trace evidence and the exact
 next trial. Preserve all runtimes/history; no agent-paid voice trial authorized.
+Draft PR #31 contains the change on `fix/live-action-dispatch`; keep it and issue
+#30 open pending the greeting-only voice check. GitHub's application job could
+not start because of account billing; the local checks above passed.
 
 ## Delivered milestone 5: GPT-Live voice
 
