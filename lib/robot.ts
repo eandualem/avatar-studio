@@ -75,7 +75,8 @@ export async function createRobot(
     camera.aspect = width / height;
     camera.position.z = Math.max(
       2.25,
-      1.22 / (2 * Math.tan(T.MathUtils.degToRad(15)) * camera.aspect),
+      // Fill the stage vertically, backing off only on narrow panels.
+      0.82 / (2 * Math.tan(T.MathUtils.degToRad(15)) * camera.aspect),
     );
     camera.updateProjectionMatrix();
   };

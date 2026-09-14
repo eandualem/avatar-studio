@@ -72,6 +72,20 @@ refresh; old saved order is preserved because it cannot be reliably reconstructe
 See `docs/live-message-order.md` for the contract, evidence and recovery limits.
 No runtime restart, provider change or new paid voice call was needed.
 
+## Avatar stage layout (issue #26)
+
+Elias requested the reference’s larger avatar framing. The stage now contains
+Charlie and functional status/error feedback only; decorative captions, top
+slogan and bottom signature are removed. The canvas fills its panel on desktop
+and mobile; camera width padding is tighter so the robot uses the reclaimed
+height. Desktop/laptop and 390 × 844 mobile browser checks show the full standing
+body; all 73 tests and type/lint/build checks pass. Extreme sideways poses can
+extend outside the tighter frame, as with any fixed portrait camera.
+
+Elias also reported resolving the September 14 Live creation error by adding
+API funds. The runtime diagnostics investigation is closed at his request;
+no runtime changes, restart or paid retry were made for that investigation.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction
