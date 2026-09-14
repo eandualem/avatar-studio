@@ -13,7 +13,7 @@ import { bodyTransport } from "./body-runtime";
 import { LiveBodyFacts } from "./live-body-facts";
 import { bodyMessages } from "./body-transcript";
 import { conversationWindow } from "./conversation-window";
-import { observeVoiceEvents, voiceRequest } from "./voice-http";
+import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
 import { installLivePolicy } from "./live-policy";
@@ -442,8 +442,16 @@ export class VoiceClient {
           try {
             const offer = await this.allocation;
             this.callId = offer.call_id;
-          } catch {
-            if (!this.callId)
+          } catch (error) {
+            // Only an explicit runtime rejection proves no provider call exists.
+            // HTTP status alone cannot distinguish a rejection from a lost answer.
+            if (
+              !this.callId &&
+              !(
+                error instanceof VoiceHttpError &&
+                error.allocationStatus === "rejected"
+              )
+            )
               throw new Error(
                 "Voice setup could not be confirmed. Local audio has stopped; check the runtime before starting another call.",
               );

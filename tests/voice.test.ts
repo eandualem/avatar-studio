@@ -6,7 +6,11 @@ import { VoiceClient } from "@/lib/voice-client";
 import { conversationMachine } from "@/machines/conversationMachine";
 import { restPose } from "@/lib/motion";
 import type { MotionController, MotionResult } from "@/types/avatar";
-import { voiceRequest, observeVoiceEvents } from "@/lib/voice-http";
+import {
+  voiceRequest,
+  observeVoiceEvents,
+  VoiceHttpError,
+} from "@/lib/voice-http";
 
 vi.mock("@/lib/body-runtime", () => ({
   bodyTransport: {
@@ -15,17 +19,10 @@ vi.mock("@/lib/body-runtime", () => ({
     cancel: vi.fn(async () => {}),
   },
 }));
-vi.mock("@/lib/voice-http", () => ({
+vi.mock("@/lib/voice-http", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/voice-http")>()),
   voiceRequest: vi.fn(),
   observeVoiceEvents: vi.fn(() => vi.fn()),
-  VoiceHttpError: class extends Error {
-    constructor(
-      message: string,
-      readonly status: number,
-    ) {
-      super(message);
-    }
-  },
 }));
 const callId = "c3a45b02-ab96-43be-9d0f-2b9e449b96fb";
 const offer = {
@@ -348,6 +345,48 @@ describe("live audio lifecycle and independent motion", () => {
     expect(mic.stop).toHaveBeenCalledOnce();
     expect(peers[0].close).toHaveBeenCalledOnce();
   });
+  it("keeps the confirmed setup rejection as the only visible error and releases media", async () => {
+    const request = vi.mocked(voiceRequest).getMockImplementation()!;
+    const message = "GPT-Live rejected the session configuration (HTTP 400).";
+    vi.mocked(voiceRequest).mockImplementation(async (...args) => {
+      if (args[0] === "calls")
+        throw new VoiceHttpError(message, 502, "rejected");
+      return request(...args);
+    });
+    const actor = createActor(conversationMachine, {
+      input: { controller: controller() },
+    }).start();
+    await waitFor(actor, (s) => s.matches("idle"));
+    actor.send({ type: "START_LIVE" });
+    await waitFor(actor, (s) => s.matches("idle") && s.context.error !== "");
+    expect(actor.getSnapshot().context.error).toBe(message);
+    expect(mic.stop).toHaveBeenCalledOnce();
+    expect(peers[0].close).toHaveBeenCalledOnce();
+    expect(voiceRequest).toHaveBeenCalledTimes(2);
+    actor.stop();
+  });
+  it.each([
+    new VoiceHttpError("Legacy runtime failure", 400),
+    new VoiceHttpError("Provider timeout", 502, "unknown"),
+    new TypeError("Failed to fetch"),
+  ])(
+    "retains the allocation warning for uncertain setup: %s",
+    async (error) => {
+      const request = vi.mocked(voiceRequest).getMockImplementation()!;
+      vi.mocked(voiceRequest).mockImplementation(async (...args) => {
+        if (args[0] === "calls") throw error;
+        return request(...args);
+      });
+      const client = new VoiceClient("session", controller());
+      await expect(client.start()).rejects.toBe(error);
+      await expect(client.end()).rejects.toThrow(
+        "Voice setup could not be confirmed",
+      );
+      expect(mic.stop).toHaveBeenCalledOnce();
+      expect(peers[0].close).toHaveBeenCalledOnce();
+      expect(voiceRequest).toHaveBeenCalledTimes(2);
+    },
+  );
   it("closes an allocated call when its answer is malformed", async () => {
     vi.mocked(voiceRequest).mockImplementation(async (path) =>
       path === "status"

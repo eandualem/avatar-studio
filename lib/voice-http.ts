@@ -2,6 +2,7 @@ export class VoiceHttpError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly allocationStatus: "rejected" | "unknown" = "unknown",
   ) {
     super(message);
   }
@@ -18,13 +19,14 @@ export async function voiceRequest(
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(path.endsWith("tool-result") ? 175000 : 50000),
   });
-  const result = await response.json().catch(() => ({}));
+  const result = await response.json().catch(() => null);
   if (!response.ok)
     throw new VoiceHttpError(
-      typeof result.detail === "string"
+      typeof result?.detail === "string"
         ? result.detail
         : "The live conversation request failed.",
       response.status,
+      result?.allocation_status === "rejected" ? "rejected" : "unknown",
     );
   return result;
 }
