@@ -14,6 +14,7 @@ import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
 import { VoiceReplies } from "./voice-replies";
+import { installLivePolicy } from "./live-policy";
 
 const abortError = () =>
   new DOMException("Live connection cancelled", "AbortError");
@@ -35,6 +36,8 @@ export class VoiceClient {
   private allocation?: Promise<ReturnType<typeof voiceOfferSchema.parse>>;
   private closing?: Promise<void>;
   private ending = false;
+  private policyReady = false;
+  private policyAbort = new AbortController();
   private disposed = false;
   private cancelling = false;
   private actions = new Map<string, Action>();
@@ -112,11 +115,13 @@ export class VoiceClient {
       throw abortError();
     }
     this.media = media;
+    for (const track of media.getAudioTracks()) track.enabled = false;
     this.peer = new RTCPeerConnection();
     window.addEventListener("pagehide", this.leave);
     const peer = this.peer;
     this.audio = new Audio();
     this.audio.autoplay = true;
+    this.audio.muted = true;
     this.audioContext = new AudioContext();
     void this.audioContext.resume().catch(() => {});
     peer.ontrack = (event) => {
@@ -204,6 +209,20 @@ export class VoiceClient {
     );
     await this.waitFor(() => providerStarted, channel, "message", 10000);
     this.check();
+    await this.waitFor(
+      () => channel.readyState === "open",
+      channel,
+      "open",
+      10000,
+    );
+    this.check();
+    await installLivePolicy(channel, this.policyAbort.signal);
+    this.check();
+    this.policyReady = true;
+    this.performPending();
+    for (const track of media.getAudioTracks())
+      track.enabled = !this.view.micMuted;
+    this.audio.muted = false;
     this.started = performance.now();
   }
   private waitFor(
@@ -285,7 +304,7 @@ export class VoiceClient {
     if (!this.media || this.ending) return;
     const muted = !this.view.micMuted;
     this.media.getAudioTracks().forEach((track) => {
-      track.enabled = !muted;
+      track.enabled = this.policyReady && !muted;
     });
     this.update({ micMuted: muted });
   };
@@ -429,6 +448,7 @@ export class VoiceClient {
     this.controller.stop();
   }
   private performPending() {
+    if (!this.policyReady) return;
     if (this.pendingAction)
       void this.perform(this.pendingAction.delegation, this.pendingAction.tool);
   }
@@ -530,6 +550,7 @@ export class VoiceClient {
   }
   private leave = () => {
     this.ending = true;
+    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
     this.abortActions();
     if (this.callId)
@@ -542,6 +563,7 @@ export class VoiceClient {
   end = (): Promise<void> => {
     if (this.closing) return this.closing;
     this.ending = true;
+    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
     this.abortActions();
     this.media?.getAudioTracks().forEach((track) => {
@@ -579,6 +601,7 @@ export class VoiceClient {
     return this.closing;
   };
   private disposeMedia() {
+    this.policyAbort.abort();
     if (this.disposed) return;
     this.disposed = true;
     this.controller.setSpeechLevel?.(0);

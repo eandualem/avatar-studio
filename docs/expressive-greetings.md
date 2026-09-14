@@ -1,5 +1,9 @@
 # Conversational body expression
 
+Follow-up: PR #29 did not establish reliable Live dispatch. See
+[Live action dispatch](live-action-dispatch.md) for the observed failure, current
+per-call policy activation and remaining greeting-only voice verification.
+
 Issue #28 changes Charlie’s policy from moving only on request or occasionally
 to actively expressing a greeting with a short wave. Other examples are modest
 acknowledgment nods, curious head tilts and explanatory open-hand gestures. The

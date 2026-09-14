@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createActor, waitFor, type ActorRefFrom } from "xstate";
 import type { voiceMachine } from "@/machines/voiceMachine";
 import { VoiceClient } from "@/lib/voice-client";
+import { installLivePolicy } from "@/lib/live-policy";
 import { conversationMachine } from "@/machines/conversationMachine";
 import { restPose } from "@/lib/motion";
 import type { MotionController, MotionResult } from "@/types/avatar";
@@ -53,8 +54,20 @@ let mic: ReturnType<typeof track>,
   },
   getUserMedia: ReturnType<typeof vi.fn>;
 let peers: FakePeer[];
-let speakers: FakeAudio[], audioLevel: number;
+let speakers: FakeAudio[], audioLevel: number, acknowledgePolicy: boolean;
 class FakeChannel extends EventTarget {
+  readyState = "open";
+  autoAcknowledge = acknowledgePolicy;
+  send = vi.fn((raw: string) => {
+    const data = JSON.parse(raw);
+    if (this.autoAcknowledge)
+      queueMicrotask(() =>
+        this.emit({
+          type: "session.instructions.appended",
+          client_event_id: data.event_id,
+        }),
+      );
+  });
   onmessage: ((event: MessageEvent) => void) | null = null;
   emit(data: unknown) {
     const e = new MessageEvent("message", { data: JSON.stringify(data) });
@@ -131,6 +144,7 @@ beforeEach(() => {
   peers = [];
   speakers = [];
   audioLevel = 128;
+  acknowledgePolicy = true;
   mic = track();
   media = { getTracks: () => [mic], getAudioTracks: () => [mic] };
   getUserMedia = vi.fn(async () => media);
@@ -157,6 +171,137 @@ afterEach(() => {
 });
 
 describe("live audio lifecycle and delegated motion", () => {
+  it("keeps microphone and playback muted until the matching policy acknowledgment", async () => {
+    acknowledgePolicy = false;
+    const motion = controller();
+    const client = new VoiceClient("session", motion);
+    const start = client.start();
+    await vi.waitFor(() =>
+      expect(peers[0]?.channel.send).toHaveBeenCalledOnce(),
+    );
+    const channel = peers[0].channel;
+    const policy = JSON.parse(channel.send.mock.calls[0][0]);
+    expect(policy).toMatchObject({
+      type: "session.instructions.append",
+      delegation_id: null,
+    });
+    expect(policy.content).toContain("Delegation policy:");
+    expect(policy.content).toContain('"Can you wave?"');
+    expect(mic.enabled).toBe(false);
+    expect(speakers[0].muted).toBe(true);
+    channel.emit({
+      type: "session.instructions.appended",
+      client_event_id: "unrelated",
+    });
+    await flush();
+    expect(mic.enabled).toBe(false);
+    channel.emit({
+      type: "session.instructions.appended",
+      client_event_id: policy.event_id,
+    });
+    await start;
+    expect(mic.enabled).toBe(true);
+    expect(speakers[0].muted).toBe(false);
+    expect(motion.execute).not.toHaveBeenCalled();
+    expect(channel.send).toHaveBeenCalledOnce();
+    await client.end();
+  });
+  it("holds a pending host action until policy confirmation", async () => {
+    acknowledgePolicy = false;
+    const motion = controller();
+    const client = new VoiceClient("session", motion);
+    const start = client.start();
+    await vi.waitFor(() =>
+      expect(peers[0]?.channel.send).toHaveBeenCalledOnce(),
+    );
+    client.receive(
+      event("delegation", {
+        id: "greeting",
+        status: "pending_host",
+        pending_tool_call: pending,
+      }),
+    );
+    await flush();
+    expect(motion.execute).not.toHaveBeenCalled();
+    const channel = peers[0].channel;
+    const policy = JSON.parse(channel.send.mock.calls[0][0]);
+    channel.emit({
+      type: "session.instructions.appended",
+      client_event_id: policy.event_id,
+    });
+    await start;
+    await flush();
+    expect(motion.execute).toHaveBeenCalledOnce();
+    await client.end();
+  });
+  it("keeps rejected policy audio muted and closes the allocated call", async () => {
+    acknowledgePolicy = false;
+    const client = new VoiceClient("session", controller());
+    const start = client.start().catch((error) => error);
+    await vi.waitFor(() =>
+      expect(peers[0]?.channel.send).toHaveBeenCalledOnce(),
+    );
+    const channel = peers[0].channel;
+    const policy = JSON.parse(channel.send.mock.calls[0][0]);
+    channel.emit({
+      type: "error",
+      error: {
+        client_event_id: policy.event_id,
+        message: "raw provider details",
+      },
+    });
+    expect((await start).message).toContain("instructions were rejected");
+    expect(mic.enabled).toBe(false);
+    expect(speakers[0].muted).toBe(true);
+    await client.end();
+    expect(
+      vi.mocked(voiceRequest).mock.calls.filter(([p]) => p.endsWith("/close")),
+    ).toHaveLength(1);
+    expect(mic.stop).toHaveBeenCalledOnce();
+  });
+  it("cancels policy installation without enabling audio after a late acknowledgment", async () => {
+    acknowledgePolicy = false;
+    const client = new VoiceClient("session", controller());
+    const start = client.start().catch((error) => error);
+    await vi.waitFor(() =>
+      expect(peers[0]?.channel.send).toHaveBeenCalledOnce(),
+    );
+    const channel = peers[0].channel;
+    const policy = JSON.parse(channel.send.mock.calls[0][0]);
+    await client.end();
+    channel.emit({
+      type: "session.instructions.appended",
+      client_event_id: policy.event_id,
+    });
+    expect((await start).name).toBe("AbortError");
+    expect(mic.enabled).toBe(false);
+    expect(speakers[0].muted).toBe(true);
+  });
+  it("times out an unacknowledged policy without retrying", async () => {
+    vi.useFakeTimers();
+    acknowledgePolicy = false;
+    const channel = new FakeChannel();
+    const result = installLivePolicy(
+      channel as unknown as RTCDataChannel,
+      new AbortController().signal,
+    ).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect((await result).message).toContain(
+      "instructions could not be confirmed",
+    );
+    expect(channel.send).toHaveBeenCalledOnce();
+  });
+  it("rejects policy installation when the data channel closes", async () => {
+    acknowledgePolicy = false;
+    const channel = new FakeChannel();
+    const result = installLivePolicy(
+      channel as unknown as RTCDataChannel,
+      new AbortController().signal,
+    ).catch((error) => error);
+    channel.dispatchEvent(new Event("close"));
+    expect((await result).message).toContain("closed before");
+  });
+
   it("refreshes avatar screenshots before voice tool results and never allocates an extra call for capture", async () => {
     const motion = controller();
     let sequence = 0;
@@ -232,6 +377,7 @@ describe("live audio lifecycle and delegated motion", () => {
     frame(1000);
     expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
     audioLevel = 128;
+    acknowledgePolicy = true;
     now.mockReturnValue(1200);
     client.playSound();
     await flush();
@@ -252,6 +398,7 @@ describe("live audio lifecycle and delegated motion", () => {
     expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
     speakers[0].paused = false;
     audioLevel = 128;
+    acknowledgePolicy = true;
     frame(5002);
     expect(motion.setSpeechLevel).toHaveBeenLastCalledWith(0);
     audioLevel = 155;

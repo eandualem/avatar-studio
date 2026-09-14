@@ -98,6 +98,18 @@ runtime processes and their histories are preserved. Use **New conversation**
 for the new Live policy; session IDs do not migrate backend memory. Setup and
 verification are in `docs/expressive-greetings.md`. No new paid Live test was run.
 
+## Live action dispatch follow-up (issue #30)
+
+Elias's real voice trial exposed speech claiming movement with no initial
+backend delegation. Updated code appends the current concise Live policy over
+WebRTC on every new call and waits for its correlated acknowledgment before
+unmuting audio or executing pending tools. No runtime restart or new instance.
+Backend artifact v3 on 7112 and v1 on 7113 reinforces physical greeting work.
+79 tests and type/lint/build pass. Elias confirms explicit voice actions now
+dispatch and typed greetings wave; greeting-only voice completion is still under
+user testing. See `docs/live-action-dispatch.md` for trace evidence and the exact
+next trial. Preserve all runtimes/history; no agent-paid voice trial authorized.
+
 ## Delivered milestone 5: GPT-Live voice
 
 Elias accepted the body-control direction and requested direct audio interaction
