@@ -13,21 +13,21 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
   [
     {
       name: "Head glance",
-      hint: "A small isolated movement. Angles are radians; try yaw ±0.2 and 0.5–0.8 seconds.",
+      hint: "A small isolated movement. Angles are radians; try yaw ±0.2 and 0.2 seconds per segment. Speed limits may extend execution.",
       motion: {
         waypoints: [
-          { time: 0.6, head: { yaw: 0.2, nod: 0, tilt: 0 } },
-          { time: 1.2, head: { yaw: 0, nod: 0, tilt: 0 } },
+          { time: 0.2, head: { yaw: 0.2, nod: 0, tilt: 0 } },
+          { time: 0.4, head: { yaw: 0, nod: 0, tilt: 0 } },
         ],
       },
     },
     {
       name: "Raise left hand",
-      hint: "Robot left is viewer right. A full raise needs about 1.7 seconds under current limits. Direction rotates the fingers, subject to wrist limits.",
+      hint: "Robot left is viewer right. Requests a 0.6-second raise; current speed limits may extend it. Direction rotates the fingers, subject to wrist limits.",
       motion: {
         waypoints: [
           {
-            time: 1.8,
+            time: 0.6,
             left: {
               position: [0.29, 0.83, 0.09],
               direction: [0, 1, 0],
@@ -44,7 +44,7 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
       motion: {
         waypoints: [
           {
-            time: 1.8,
+            time: 0.6,
             left: {
               position: [0.29, 0.83, 0.09],
               direction: [0, 1, 0],
@@ -52,9 +52,9 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
               roll: 0,
             },
           },
-          { time: 2.2, left: { position: [0.32, 0.83, 0.09] } },
-          { time: 2.6, left: { position: [0.27, 0.83, 0.09] } },
-          { time: 3, left: { position: [0.3, 0.83, 0.09] } },
+          { time: 2.2 / 3, left: { position: [0.32, 0.83, 0.09] } },
+          { time: 2.6 / 3, left: { position: [0.27, 0.83, 0.09] } },
+          { time: 1, left: { position: [0.3, 0.83, 0.09] } },
         ],
       },
     },
@@ -62,7 +62,9 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
       name: "Point with fingers",
       hint: "Curls: thumb, index, middle, ring, pinky. 0 opens and 1 closes. This changes fingers only, holding the current arm position.",
       motion: {
-        waypoints: [{ time: 1, left: { curls: [0.65, 0, 0.85, 0.85, 0.85] } }],
+        waypoints: [
+          { time: 1 / 3, left: { curls: [0.65, 0, 0.85, 0.85, 0.85] } },
+        ],
       },
     },
     {
@@ -71,7 +73,7 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
       motion: {
         waypoints: [
           {
-            time: 1.5,
+            time: 0.5,
             pelvis: { offset: [0, -0.07, -0.055], yaw: 0 },
             torso: { bend: 0.2, twist: 0, lean: 0 },
           },
@@ -81,7 +83,7 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
     {
       name: "Return to rest",
       hint: "Requests the standing rest pose through the same solver; it does not teleport or bypass constraints. From a blocked pose, adjust the path first.",
-      motion: { waypoints: [{ time: 2, ...restPose() }] },
+      motion: { waypoints: [{ time: 2 / 3, ...restPose() }] },
     },
   ];
 
@@ -91,6 +93,39 @@ export type LabReport = {
   receipt: ToolReceipt;
   elapsedMs: number;
 };
+
+export function resetLabPose(controller: MotionController): LabReport {
+  const before = controller.pose();
+  const started = performance.now();
+  const call = {
+    call_id: crypto.randomUUID(),
+    tool_name: "reset_pose",
+    arguments: {},
+  };
+  try {
+    if (!controller.reset)
+      throw new Error("The avatar does not support pose reset.");
+    const pose = controller.reset();
+    return {
+      call,
+      before,
+      receipt: { result: { status: "reset", pose } },
+      elapsedMs: performance.now() - started,
+    };
+  } catch (error) {
+    return {
+      call,
+      before,
+      receipt: {
+        outcome: "failed",
+        result: {
+          error: error instanceof Error ? error.message : "Pose reset failed",
+        },
+      },
+      elapsedMs: performance.now() - started,
+    };
+  }
+}
 
 export function previewMotion(source: string, pose: Pose) {
   try {

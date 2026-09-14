@@ -183,6 +183,12 @@ export function createMotionController(): MotionController {
     stop() {
       cancel?.();
     },
+    reset() {
+      if (!driver?.reset) throw new Error("The avatar is not ready to reset.");
+      cancel?.();
+      current = driver.reset();
+      return structuredClone(current);
+    },
     execute(motion, signal) {
       if (!driver)
         return Promise.reject(new Error("The avatar is still loading."));

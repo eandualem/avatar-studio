@@ -27,8 +27,10 @@ introducing an agent gesture menu; tune the solver only from measured evidence.
 Current workflow and verification are in `docs/motion-testing.md`. Backend motion
 guidance travels in host context; the revised Live prompt requires a coordinated
 voice-runtime reload before it takes effect. Preserve existing runtime histories.
-After delivery, Elias can test motions and share receipts to guide the next
-animation changes; no further solver or runtime tuning is underway.
+Issue #16 adds a direct Reset pose control and divides existing example times
+by three following Elias’s trial. Reset restores the initial rig and solver
+state without reloading. Solver speed limits remain active. Elias can test
+motions and share receipts to guide further animation changes.
 
 ## Delivered milestone 5: GPT-Live voice
 

@@ -3,7 +3,7 @@ import { sendTurn, cancelTurn } from "@/lib/runtime";
 import { executeTool } from "@/lib/host-tools";
 import { loadHistory, newConversation, saveHistory } from "@/lib/history";
 import { voiceMachine } from "./voiceMachine";
-import { runLabTool, type LabReport } from "@/lib/motion-lab";
+import { runLabTool, resetLabPose, type LabReport } from "@/lib/motion-lab";
 import type {
   Conversation,
   Pending,
@@ -33,6 +33,7 @@ type Events =
   | { type: "START_LIVE" }
   | { type: "OPEN_DEV" }
   | { type: "CLOSE_DEV" }
+  | { type: "DEV_RESET" }
   | { type: "DEV_RUN"; call: Pending }
   | { type: "STOP" };
 function incorporate(current: Conversation, reply: Reply): Conversation {
@@ -230,6 +231,16 @@ export const conversationMachine = setup({
       initial: "ready",
       exit: "stopMotion",
       on: {
+        DEV_RESET: {
+          target: ".ready",
+          guard: ({ context }) => context.controller.ready(),
+          actions: assign({
+            labCall: null,
+            labReport: ({ context }) => resetLabPose(context.controller),
+          }),
+          description:
+            "Cancel a direct test and restore the initial pose and solver state.",
+        },
         CLOSE_DEV: {
           target: "idle",
           description: "Stop local work and restore conversation.",

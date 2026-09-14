@@ -21,22 +21,25 @@ visible stops; choose a few meaningful targets. The frontend may extend timing
 to enforce speed limits, so requesting 0.2 seconds cannot force a full arm raise
 to finish that quickly. Use smaller excursions for a brisk gesture.
 
+Requested timings below are one third of the original examples, per Elias’s
+browser testing. They do not change the solver’s speed limits.
+
 Starting points from standing (height = 1, X robot left, Y up, Z forward):
 
-- Head glance: `{time:0.6, head:{yaw:0.2,nod:0,tilt:0}}`, then return head to
-  zero at 1.2s. Small head changes often fit 0.5–0.8s per segment.
-- Raise left hand: at 1.8s, position `[0.29,0.83,0.09]`, direction `[0,1,0]`,
+- Head glance: `{time:0.2, head:{yaw:0.2,nod:0,tilt:0}}`, then return head to
+  zero at 0.4s. Request 0.2s per segment; actual timing may be extended.
+- Raise left hand: at 0.6s, position `[0.29,0.83,0.09]`, direction `[0,1,0]`,
   curls `[0,0,0,0,0]`, roll `0`. Mirroring X gives a right-hand candidate.
   A full raise from rest requires about 1.7s under Cartesian speed limits,
   and the actual joints may need longer. Direction is wrist-to-fingers, not
   the palm normal; avoid large direction reversals or extreme roll.
-- Wave after raising: move that hand's X to 0.32 at 2.2s, 0.27 at 2.6s, and
-  0.30 at 3.0s, holding Y/Z. These small arcs are tunable examples. Return
+- Wave after raising: move that hand's X to 0.32 at 0.7333s, 0.27 at 0.8667s, and
+  0.30 at 1.0s, holding Y/Z. These small arcs are tunable examples. Return
   toward the supplied rest pose only if it fits the request; lowering the
   whole arm adds another reach and delays the receipt.
 - Point: curls `[0.65,0,0.85,0.85,0.85]`, ordered thumb/index/middle/ring/pinky.
-  Curl 0 opens, 1 closes. About 1s accommodates the full finger change.
-- Shallow crouch: over 1.5s, pelvis `{offset:[0,-0.07,-0.055],yaw:0}` and
+  Curl 0 opens, 1 closes. Request 0.3333s for the finger change; speed limits can extend it.
+- Shallow crouch: request 0.5s, pelvis `{offset:[0,-0.07,-0.055],yaw:0}` and
   torso `{bend:0.2,twist:0,lean:0}` with feet held planted. For a leg lift,
   first shift hips toward the planted foot and inspect the resulting support.
 

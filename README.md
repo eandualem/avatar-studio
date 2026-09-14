@@ -52,7 +52,8 @@ credentials stay in the runtime. No microphone starts automatically.
 
 **Dev test**, beside **Talk live**, opens direct movement controls. Choose an
 editable example, tweak waypoint numbers or JSON, and run the same tool the
-assistant uses. Read the pose, stop a movement, and copy its input/result with
+assistant uses. Read the pose, stop a movement, reset Charlie instantly for the
+next test, and copy its input/result with
 timing and constraint feedback. Close Dev test to return to conversation.
 See [movement testing and guidance](docs/motion-testing.md).
 

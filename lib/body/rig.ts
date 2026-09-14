@@ -387,8 +387,28 @@ export function createBodyRig(model: Object3D) {
   )
     throw new Error("The initial body pose violates its movement constraints.");
   ready = true;
+  // Manual test reset restores the already-validated starting state directly.
+  const initialPose = structuredClone(current);
+  const initialTransforms = [...bones.values()].map((b) => ({
+    b,
+    p: b.position.clone(),
+    q: b.quaternion.clone(),
+  }));
+  const initialChains = [...arms, ...legs].map((l) => l.chain.snapshot());
+  const initialWrists = arms.map((a) => a.wrist.clone());
   return {
     apply,
+    reset: () => {
+      for (const { b, p, q } of initialTransforms) {
+        b.position.copy(p);
+        b.quaternion.copy(q);
+      }
+      [...arms, ...legs].forEach((l, i) => l.chain.restore(initialChains[i]));
+      arms.forEach((a, i) => a.wrist.copy(initialWrists[i]));
+      current = structuredClone(initialPose);
+      model.updateMatrixWorld(true);
+      return structuredClone(current);
+    },
     halt: () => {
       for (const limb of [...arms, ...legs])
         for (const joint of limb.chain.joints) joint.velocity.fill(0);

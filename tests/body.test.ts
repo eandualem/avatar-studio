@@ -83,6 +83,34 @@ const near = (actual: number[], target: number[], tolerance = 0.008) =>
   ).toBeLessThan(tolerance);
 
 describe("constrained motion on the shipped skeleton", () => {
+  it("restores the initial pose and solver state after a blocked movement", async () => {
+    const b = await body();
+    const initial = b.rig.reset();
+    const diagnostics = b.rig.diagnostics();
+    const target = structuredClone(initial);
+    target.left.position = [0.29, 0.83, 0.09];
+    target.head.yaw = 0.2;
+    const firstStep = b.rig.apply(target, 1 / 60);
+    b.move((p) => {
+      p.pelvis.offset = [0, -0.07, -0.055];
+      p.torso.bend = 0.2;
+    });
+    const blocked = b.move((p) => {
+      p.left.position = [0, 0.68, 0];
+    });
+    expect(blocked.reasons.length).toBeGreaterThan(0);
+    expect(b.rig.reset()).toEqual(initial);
+    expect(b.rig.diagnostics()).toEqual(diagnostics);
+    const repeated = b.rig.apply(target, 1 / 60);
+    expect(repeated.settled).toBe(firstStep.settled);
+    expect(repeated.pose.head).toEqual(firstStep.pose.head);
+    for (const side of ["left", "right", "leftFoot", "rightFoot"] as const)
+      near(repeated.pose[side].position, firstStep.pose[side].position, 1e-6);
+    // Returned poses must not mutate the saved reset state.
+    const reset = b.rig.reset();
+    reset.head.yaw = 0.5;
+    expect(b.rig.reset()).toEqual(initial);
+  });
   it.each(motionExamples)(
     "executes the Dev test example $name at its planned timing",
     async ({ motion }) => {

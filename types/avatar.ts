@@ -146,6 +146,7 @@ export type RigDriver = {
   };
   dispose: () => void;
   halt?: () => void;
+  reset?: () => Pose;
 };
 export interface MotionController {
   attach(driver: RigDriver): void;
@@ -153,5 +154,6 @@ export interface MotionController {
   ready(): boolean;
   pose(): Pose;
   stop(): void;
+  reset?(): Pose;
   execute(motion: Motion, signal?: AbortSignal): Promise<MotionResult>;
 }
