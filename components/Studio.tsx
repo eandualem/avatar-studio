@@ -24,6 +24,7 @@ import {
   useMotionLab,
 } from "@/hooks/useStudio";
 import { MotionLab } from "./MotionLab";
+import { BodyModelSelect } from "./BodyModelSelect";
 import { BodyTiming } from "./BodyTiming";
 import { VoicePhase } from "@/types/voice";
 
@@ -205,6 +206,7 @@ function Workspace() {
           <div className="heading-row">
             <span className="eyebrow">YOUR SPACE TO EXPLORE</span>
             <div className="heading-actions">
+              <BodyModelSelect disabled={busy} />
               <label className="dev-toggle">
                 <input
                   type="checkbox"
