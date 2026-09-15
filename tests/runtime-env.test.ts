@@ -26,9 +26,10 @@ describe("runtime/avatar-runtime.env", () => {
       expect(key, key).not.toMatch(/API_KEY|ENCRYPTION_KEY|SECRET|TOKEN/);
   });
 
-  it("keeps the voice prompt identical to profiles/live-instructions.md", () => {
-    expect(env.VOICE__CONVERSATION_INSTRUCTIONS).toBe(
-      readFileSync("profiles/live-instructions.md", "utf8").trim(),
+  it("takes the voice prompt from the checked-in file, not a copy", () => {
+    expect(env.VOICE__CONVERSATION_INSTRUCTIONS).toBeUndefined();
+    expect(readFileSync("scripts/runtime-up.sh", "utf8")).toContain(
+      'VOICE__CONVERSATION_INSTRUCTIONS_FILE="$APP_DIR/profiles/live-instructions.md"',
     );
   });
 
@@ -40,6 +41,6 @@ describe("runtime/avatar-runtime.env", () => {
       ASSISTANT__ENABLE_WORKING_MEMORY: "false",
     });
     expect(env.ASSISTANT__PROFILE).toBeUndefined(); // set by scripts/runtime-up.sh
-    expect(env.LLM__CODEX_SERVICE_TIER).toBeUndefined();
+    expect(env.LLM__CODEX_SERVICE_TIER).toBe("default");
   });
 });

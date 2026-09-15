@@ -3,6 +3,7 @@ import { useState, useSyncExternalStore } from "react";
 import {
   BODY_MODEL_OPTIONS,
   currentBodyModel,
+  optionKey,
   setBodyModel,
   subscribeBodyModel,
 } from "@/lib/body-model";
@@ -19,7 +20,7 @@ export function BodyModelSelect({ disabled = false }: { disabled?: boolean }) {
     currentBodyModel,
     () => "",
   );
-  const known = BODY_MODEL_OPTIONS.some((o) => o.id === model);
+  const known = BODY_MODEL_OPTIONS.some((o) => optionKey(o) === model);
   // "Other…" stays open after the user picks it; a stored custom id opens it too.
   const [customChosen, setCustomChosen] = useState(false);
   const custom = customChosen || !known;
@@ -44,7 +45,7 @@ export function BodyModelSelect({ disabled = false }: { disabled?: boolean }) {
           }}
         >
           {BODY_MODEL_OPTIONS.map((option) => (
-            <option key={option.id || "default"} value={option.id}>
+            <option key={optionKey(option) || "default"} value={optionKey(option)}>
               {option.label}
             </option>
           ))}
@@ -74,7 +75,7 @@ export function BodyModelSelect({ disabled = false }: { disabled?: boolean }) {
       <small>
         {invalid
           ? "Use provider:model, lowercase."
-          : (BODY_MODEL_OPTIONS.find((o) => o.id === model)?.note ??
+          : (BODY_MODEL_OPTIONS.find((o) => optionKey(o) === model)?.note ??
             "Applies to the next movement decision.")}
       </small>
     </div>

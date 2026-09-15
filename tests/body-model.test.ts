@@ -4,6 +4,7 @@ import {
   BODY_MODEL_STORAGE_KEY,
   bodyModelConfig,
   normalizeBodyModel,
+  optionKey,
   readBodyModel,
   setBodyModel,
   currentBodyModel,
@@ -40,9 +41,21 @@ describe("normalizeBodyModel", () => {
     expect(normalizeBodyModel("openai:gpt 6")).toBeNull();
     expect(normalizeBodyModel("openai:<script>")).toBeNull();
   });
-  it("lists only valid ids as options", () => {
+  it("lists only valid selections as options", () => {
     for (const option of BODY_MODEL_OPTIONS)
-      expect(normalizeBodyModel(option.id)).toBe(option.id);
+      expect(normalizeBodyModel(optionKey(option))).toBe(optionKey(option));
+    expect(normalizeBodyModel("openai:gpt-6-astra@fast")).toBe(
+      "openai:gpt-6-astra@fast",
+    );
+    expect(normalizeBodyModel("openai:gpt-6-astra@turbo")).toBeNull();
+  });
+  it("requests the Codex tier only for a fast selection", () => {
+    expect(bodyModelConfig("openai:gpt-6-astra@fast")).toEqual({
+      config: { default_model: "openai:gpt-6-astra", codex_service_tier: "fast" },
+    });
+    expect(bodyModelConfig("cerebras:gpt-oss-120b")).toEqual({
+      config: { default_model: "cerebras:gpt-oss-120b" },
+    });
   });
 });
 

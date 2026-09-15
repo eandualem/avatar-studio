@@ -9,6 +9,8 @@ export type BodyModelOption = {
   id: string;
   label: string;
   note: string;
+  /** Requested Codex service tier; only meaningful for openai: models. */
+  tier?: "fast";
 };
 
 export const BODY_MODEL_DEFAULT = "";
@@ -51,7 +53,23 @@ export const BODY_MODEL_OPTIONS: readonly BodyModelOption[] = [
     label: "GPT-6 Astra",
     note: "~50 t/s, Codex subscription",
   },
+  {
+    id: "openai:gpt-6-astra",
+    label: "GPT-6 Astra · Fast requested",
+    note: "priority tier requested; delivery not guaranteed",
+    tier: "fast",
+  },
 ];
+
+/** Selection key: model id plus an optional tier suffix ("model@fast"). */
+export function optionKey(option: Pick<BodyModelOption, "id" | "tier">) {
+  return option.tier ? `${option.id}@${option.tier}` : option.id;
+}
+
+export function parseSelection(key: string) {
+  const [id, tier] = key.split("@");
+  return { id, tier: tier === "fast" ? ("fast" as const) : undefined };
+}
 
 const pattern = /^[a-z][a-z0-9-]*:[a-z0-9][a-z0-9._/:-]*$/;
 
@@ -59,7 +77,10 @@ const pattern = /^[a-z][a-z0-9-]*:[a-z0-9][a-z0-9._/:-]*$/;
 export function normalizeBodyModel(value: string | null | undefined) {
   const trimmed = (value ?? "").trim().toLowerCase();
   if (!trimmed) return BODY_MODEL_DEFAULT;
-  return pattern.test(trimmed) ? trimmed : null;
+  const { id, tier } = parseSelection(trimmed);
+  if (!pattern.test(id)) return null;
+  if (trimmed.includes("@") && !tier) return null;
+  return tier ? `${id}@${tier}` : id;
 }
 
 export function readBodyModel(storage: Pick<Storage, "getItem"> | null) {
@@ -117,6 +138,10 @@ export function subscribeBodyModel(listener: (model: string) => void) {
 }
 
 /** Request config for a Body decision; empty when the runtime default applies. */
-export function bodyModelConfig(model = currentBodyModel()) {
-  return model ? { config: { default_model: model } } : {};
+export function bodyModelConfig(selection = currentBodyModel()) {
+  const { id, tier } = parseSelection(selection);
+  if (!id) return {};
+  return {
+    config: { default_model: id, ...(tier ? { codex_service_tier: tier } : {}) },
+  };
 }

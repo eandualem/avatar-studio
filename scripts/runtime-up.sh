@@ -15,6 +15,7 @@ fi
 cd "$RUNTIME_DIR"
 # Shell variables take precedence over --env-file values in uv.
 export ASSISTANT__PROFILE="$APP_DIR/profiles/avatar-studio.toml"
+export VOICE__CONVERSATION_INSTRUCTIONS_FILE="$APP_DIR/profiles/live-instructions.md"
 if [ -z "${OAUTH__ENCRYPTION_KEY:-}" ]; then
   # Ephemeral: without a database nothing is persisted with it.
   OAUTH__ENCRYPTION_KEY="$(uv run python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"

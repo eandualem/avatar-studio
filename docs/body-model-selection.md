@@ -55,9 +55,36 @@ an explicitly allowlisted per-request model to bypass Codex-only routing so Body
 can use an API provider while text and voice stay on the subscription and
 GPT-Live.
 
-## Verification
+## Measured on September 15, 2026 (runtime PR #138, scratch port)
 
-Selector renders in the header; choosing `cerebras:gpt-oss-120b` persists and
-reaches the runtime as `config.default_model`, which today returns the
-subscription-only error above through the app proxy. 114 tests, typecheck,
-lint and production build pass. No paid Live call or Cerebras request was made.
+Same saved standing-pose wave request, one decision per row, movement not
+executed (failed receipt), validated with the app's `bodyDecision`:
+
+| Model | Planning time | Result | Output tokens |
+| --- | --- | --- | --- |
+| `cerebras:qwen-3.8-27b` | 2.1 s, 2.5 s, 2.6 s, 3.9 s | valid `move_avatar` every time | 1,264–1,861 (includes reasoning) |
+| `cerebras:gpt-oss-120b` | 3.0 s, 3.6 s, 3.6 s | `hold` every time (no movement for a wave request) | 322–369 |
+| `openai:gpt-6-astra` | 10.4 s, 11.3 s | valid `move_avatar` | 216–219 |
+| `openai:gpt-6-astra` + Fast requested | 7.5 s | valid; requested `priority`, served `default` | 219 |
+
+Raw rows: `.tmp/model-comparison-2026-09-15.json`; script:
+`.tmp/benchmark-body-models.mjs`. These are single local samples, not a
+controlled benchmark. Qwen is the working fast candidate; gpt-oss-120b needs
+prompt work before it is useful for movement, and Astra's requested Fast tier
+was again not delivered.
+
+Two schema facts surfaced and are fixed in their proper places:
+
+- Cerebras strict tool schemas reject `minLength`/`maxLength` on strings. The
+  app's `label` field no longer declares them; the app still enforces 1–80
+  characters when validating the call.
+- Cerebras rejects a request whose tools mix `strict` values. The model library
+  marks a tool strict only when its schema is strict-compatible, so host tools
+  with numeric ranges are non-strict while the runtime's own hold tool is
+  strict. The runtime must make Cerebras tool definitions uniformly non-strict
+  (a provider-profile fact, reported to assistant-runtime for PR #138). Until
+  it lands, both Cerebras models fail with that 400.
+
+The selector also offers **GPT-6 Astra · Fast requested**, which sends
+`config.codex_service_tier: "fast"` per request; the launch env keeps the tier
+fallback at `default`.
