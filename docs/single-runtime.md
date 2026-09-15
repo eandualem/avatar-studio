@@ -35,20 +35,17 @@ the ports and `/tmp` paths in them no longer exist.
 `runtime/avatar-runtime.env` is the single launch file: Codex-only Sol as the
 primary model, Luna for summaries and working memory (off), this repository's
 profile, the `time` and `screen` built-ins, and GPT-Live in conversation-only
-mode with the Live prompt. It holds no credentials. The Live prompt is copied
-into the file because the runtime cannot yet read it from disk;
-`tests/runtime-env.test.ts` fails if the copy drifts from
-`profiles/live-instructions.md`.
+mode with the Live prompt. It holds no credentials. The launch script points the runtime at
+`profiles/live-instructions.md` through `VOICE__CONVERSATION_INSTRUCTIONS_FILE`
+(runtime PR #138), so the prompt is never copied.
 
 Body decisions choose their model per request: the app's body proxy adds
 `config.default_model` and `config.thinking_budget` (env `BODY_MODEL`, default
 `openai:gpt-6-astra`; `BODY_THINKING_BUDGET`, default 4000) so text keeps Sol on
-the same process. Requested Codex Fast is still a per-instance setting, so the
-shared instance runs the default tier until the runtime accepts a tier per
-request. Everything the runtime still needs for this to be a one-file recipe is
-tracked in [assistant-runtime #131](https://github.com/eandualem/assistant-runtime/issues/131):
-per-request service tier, env fields for every tunable, instruction files and
-profile resolution, plus a documented launch recipe.
+the same process. The Body model control can also request Codex Fast per decision
+(`config.codex_service_tier`); the launch env keeps the fallback tier at
+`default`. Runtime PR #138 (issue #131) provides these per-request fields, the
+Cerebras provider, prompt files and the deployment recipe.
 
 ## Restart procedure
 

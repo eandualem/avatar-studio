@@ -6,11 +6,12 @@ import { conversationWindow } from "./conversation-window";
 
 const metadata = {
   intent: { type: "string", enum: ["explicit", "incidental"] },
+  // No string length keywords: some strict tool-schema validators (Cerebras)
+  // reject them. The app still enforces 1–80 characters below.
   label: {
     type: "string",
-    minLength: 1,
-    maxLength: 80,
-    description: "Short physical action description, without narration.",
+    description:
+      "Short physical action description (1-80 characters), without narration.",
   },
 };
 export const bodyTools = [
