@@ -44,8 +44,9 @@ Body decisions choose their model per request: the app's body proxy adds
 `openai:gpt-6-astra`; `BODY_THINKING_BUDGET`, default 4000) so text keeps Sol on
 the same process. The Body model control can also request Codex Fast per decision
 (`config.codex_service_tier`); the launch env keeps the fallback tier at
-`default`. Runtime PR #138 (issue #131) provides these per-request fields, the
-Cerebras provider, prompt files and the deployment recipe.
+`default`. Runtime PR #138 (issue #131), merged as `8019c99`, provides these per-request
+fields, the Cerebras provider, prompt files and the deployment recipe. 7100 was
+restarted from that commit on September 15, 2026 with `make runtime`.
 
 ## Restart procedure
 
