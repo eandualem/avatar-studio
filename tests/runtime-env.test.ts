@@ -39,7 +39,7 @@ describe("runtime/avatar-runtime.env", () => {
       VOICE__DELEGATION_ENABLED: "false",
       ASSISTANT__ENABLE_WORKING_MEMORY: "false",
     });
-    expect(env.ASSISTANT__PROFILE).toMatch(/profiles\/avatar-studio\.toml$/);
+    expect(env.ASSISTANT__PROFILE).toBeUndefined(); // set by scripts/runtime-up.sh
     expect(env.LLM__CODEX_SERVICE_TIER).toBeUndefined();
   });
 });
