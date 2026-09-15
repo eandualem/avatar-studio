@@ -82,9 +82,25 @@ Two schema facts surfaced and are fixed in their proper places:
   marks a tool strict only when its schema is strict-compatible, so host tools
   with numeric ranges are non-strict while the runtime's own hold tool is
   strict. The runtime must make Cerebras tool definitions uniformly non-strict
-  (a provider-profile fact, reported to assistant-runtime for PR #138). Until
-  it lands, both Cerebras models fail with that 400.
+  (a provider-profile fact, reported to assistant-runtime for PR #138). Merged in
+  runtime PR #138 (`8019c99`); 7100 runs it.
 
 The selector also offers **GPT-6 Astra · Fast requested**, which sends
 `config.codex_service_tier: "fast"` per request; the launch env keeps the tier
 fallback at `default`.
+
+## Activation on 7100 (September 15, 2026)
+
+Runtime checkout at `8019c99`, restarted with `make runtime`; health lists
+`anthropic`, `cerebras`, `openai`, Codex-only guard on, voice configured. Through
+the app proxy on the real port, movement not executed:
+
+| Model | Planning | Result |
+| --- | --- | --- |
+| `cerebras:qwen-3.8-27b` | 3.7 s, 2.7 s | valid `move_avatar`, receipt completed |
+| `cerebras:gpt-oss-120b` | 5.7 s | `hold` |
+
+Raw rows: `.tmp/cerebras-activation-2026-09-15.json`. Elias's real call with the
+Body model set to **Qwen 3.8 27B · Cerebras** is the remaining acceptance step.
+The Cerebras free trial allows 5 requests per minute; a first purchase lifts
+that to 300.

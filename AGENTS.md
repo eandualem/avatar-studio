@@ -31,9 +31,10 @@ Elias reported a slow "hello" and asked for faster Body planning and a model
 selector in the app (not the Dev panel). The conversation header now has a
 **Body model** control; the choice travels as `config.default_model` on each
 Body decision. Cerebras (`gpt-oss-120b`, `qwen-3.8-27b`) is the first target;
-Elias has an account. The runtime must add the `cerebras` provider and a
-Codex-only bypass for allowlisted per-request models before any non-OpenAI
-choice works. See [docs/body-model-selection.md](docs/body-model-selection.md).
+Elias has an account. Runtime PR #138 (`8019c99`) added the `cerebras` provider,
+uniform non-strict Cerebras tools and the narrowed Codex-only guard; 7100 runs
+it. Qwen 3.8 27B plans a valid wave in 2.1–3.9 s versus 10–11 s on Astra;
+gpt-oss-120b holds. Elias's real Qwen call is the pending acceptance. See [docs/body-model-selection.md](docs/body-model-selection.md).
 
 ## Accepted milestone: independent Voice/Body with Astra (September 14, 2026)
 
