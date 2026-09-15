@@ -25,6 +25,16 @@ Start with [docs/single-runtime.md](docs/single-runtime.md). Port and `/tmp`
 references in the sections below are history, not current routes. Never place
 runtime checkouts, launchers or keys under `/tmp`.
 
+## Body model selector (issue #44, September 15, 2026)
+
+Elias reported a slow "hello" and asked for faster Body planning and a model
+selector in the app (not the Dev panel). The conversation header now has a
+**Body model** control; the choice travels as `config.default_model` on each
+Body decision. Cerebras (`gpt-oss-120b`, `qwen-3.8-27b`) is the first target;
+Elias has an account. The runtime must add the `cerebras` provider and a
+Codex-only bypass for allowlisted per-request models before any non-OpenAI
+choice works. See [docs/body-model-selection.md](docs/body-model-selection.md).
+
 ## Accepted milestone: independent Voice/Body with Astra (September 14, 2026)
 
 Elias tested the real call, accepted the speed as reasonable and the architecture

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { pendingSchema } from "@/types/conversation";
 import instructions from "@/profiles/body-instructions.md?raw";
+import { bodyModelConfig } from "./body-model";
 import type { BodyTransport } from "./body-controller";
 
 async function request(operation: string, body: unknown, timeout = 15000) {
@@ -38,6 +39,7 @@ export const bodyTransport: BodyTransport = {
         "chat",
         {
           ...input,
+          ...bodyModelConfig(),
           output_mode: "host_tools",
           content:
             instructions +
