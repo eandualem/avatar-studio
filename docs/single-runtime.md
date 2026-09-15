@@ -52,8 +52,10 @@ profile resolution, plus a documented launch recipe.
 
 ## Restart procedure
 
-There is no supervisor; a reboot stops the runtime. Restart it with the README
-command from the assistant-runtime checkout. Starting the server allocates no
+There is no supervisor; a reboot stops the runtime. Restart it with
+`scripts/runtime-up.sh`, which sets the absolute profile path and an ephemeral
+encryption key in the shell (shell variables override the env file in uv) and
+runs `assistant-runtime serve` from the runtime checkout. Starting the server allocates no
 paid Live call and makes no model request. Keep launch files and logs outside
 `/tmp`. Check `GET /health` for `components.llm_service.codex_only = true`,
 `primary_model = openai:gpt-5.6-sol` and voice configured before starting a call.

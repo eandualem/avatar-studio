@@ -17,28 +17,29 @@ Live-delegated movement. See [verification and activation](docs/parallel-body-ve
 Use Bun 1.4 or later and Node 22 or later:
 
 ```bash
-bun install
-bun run dev
+make install
+make dev
 ```
 
 Open **http://127.0.0.1:7140**. The app talks to one assistant-runtime on
 port 7100 for text, voice and body. `RUNTIME_URL` in `.env.local` changes the
 address; `.env.example` lists the optional overrides.
 
-Start the runtime from its own checkout with the launch file in this repository.
-Sign in once with `codex login`; keep `OPENAI_API_KEY` (GPT-Live audio) in the
-runtime's `.env`; the launch file itself holds no secrets:
+Start the runtime with the launch script. It expects an assistant-runtime
+checkout next to this repository (or `RUNTIME_DIR`), signs in through your
+existing `codex login`, and keeps `OPENAI_API_KEY` (GPT-Live audio) in the
+runtime's own `.env`; the checked-in `runtime/avatar-runtime.env` holds no secrets:
 
 ```bash
-export OAUTH__ENCRYPTION_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-uv run --env-file /absolute/path/to/avatar-studio/runtime/avatar-runtime.env \
-  assistant-runtime serve --host 127.0.0.1 --port 7100
+make runtime        # or scripts/runtime-up.sh
 ```
 
-Edit `ASSISTANT__PROFILE` in `runtime/avatar-runtime.env` to this repository's
-absolute path first. `GET /health` should report `codex_only: true` and voice
-configured. See [single runtime](docs/single-runtime.md) for what the file sets
-and why there is exactly one instance.
+`make check` runs tests, typecheck, lint and the production build.
+
+`GET http://127.0.0.1:7100/health` should report `codex_only: true`, and
+`/api/voice/status` should report voice enabled and configured. See
+[single runtime](docs/single-runtime.md) for what the file sets and why there
+is exactly one instance.
 
 API credentials belong in assistant-runtime, never the frontend. This is a local
 application; public deployment and authentication are outside this milestone.
