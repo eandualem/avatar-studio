@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sameOrigin } from "@/lib/request-origin";
+import { runtimeUrl, withBodyConfig } from "@/lib/runtime-config";
 export const maxDuration = 180;
-const url = (body: boolean) =>
-  (
-    (body ? process.env.BODY_RUNTIME_URL : undefined) ||
-    process.env.RUNTIME_URL ||
-    "http://127.0.0.1:7100"
-  ).replace(/\/$/, "");
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ operation: string }> },
@@ -18,14 +13,17 @@ export async function POST(
   if (!sameOrigin(request))
     return NextResponse.json({ detail: "Origin not allowed" }, { status: 403 });
   try {
-    const body = await request.json();
+    const body = z.record(z.string(), z.unknown()).parse(await request.json());
+    const isBody = operation.startsWith("body-");
     const path = operation.endsWith("chat")
       ? "/api/chat"
       : `/api/chat/${z.string().uuid().parse(body.session_id)}/cancel`;
-    const response = await fetch(url(operation.startsWith("body-")) + path, {
+    const response = await fetch(runtimeUrl(isBody ? "body" : "text") + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(
+        isBody && operation === "body-chat" ? withBodyConfig(body) : body,
+      ),
       signal: AbortSignal.timeout(170000),
     });
     return new NextResponse(await response.text(), {

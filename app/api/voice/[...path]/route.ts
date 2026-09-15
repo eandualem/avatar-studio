@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sameOrigin } from "@/lib/request-origin";
+import { runtimeUrl } from "@/lib/runtime-config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -34,11 +35,7 @@ async function proxy(
       { detail: "Invalid event cursor" },
       { status: 400 },
     );
-  const base = (
-    process.env.VOICE_RUNTIME_URL ||
-    process.env.RUNTIME_URL ||
-    "http://127.0.0.1:7100"
-  ).replace(/\/$/, "");
+  const base = runtimeUrl("voice");
   try {
     const response = await fetch(
       `${base}/api/voice/${path}${streaming ? `?after=${after}` : ""}`,
