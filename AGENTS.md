@@ -25,6 +25,17 @@ Start with [docs/single-runtime.md](docs/single-runtime.md). Port and `/tmp`
 references in the sections below are history, not current routes. Never place
 runtime checkouts, launchers or keys under `/tmp`.
 
+## Next session: one Charlie (issue #48, handoff September 15, 2026)
+
+Elias's real call on gpt-oss-120b animated but exposed two problems: Voice
+talks about confirmations and announces completions, and a sentence spoken with
+pauses cancels every movement decision. Last word to first motion was 3.2–6.4 s,
+mostly planning. The agreed plan is in [issue #48](https://github.com/eandualem/avatar-studio/issues/48)
+and [docs/one-charlie.md](docs/one-charlie.md): rewrite the Live prompt in
+character, make body admission continuation-aware, keep facts silent, then
+measure. Elias's constraints: keep the Body prompt, keep the 0.9 s quiet period,
+only the start of movement matters. Nothing is implemented yet.
+
 ## Body model selector (issue #44, September 15, 2026)
 
 Elias reported a slow "hello" and asked for faster Body planning and a model
