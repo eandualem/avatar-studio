@@ -16,7 +16,8 @@ import { conversationWindow } from "./conversation-window";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
-import { installLivePolicy } from "./live-policy";
+import liveInstructions from "@/profiles/live-instructions.md?raw";
+import { APP_PROFILE } from "./runtime-config";
 
 const abortError = () =>
   new DOMException("Live connection cancelled", "AbortError");
@@ -33,7 +34,6 @@ export class VoiceClient {
   private closing?: Promise<void>;
   private ending = false;
   private policyReady = false;
-  private policyAbort = new AbortController();
   private disposed = false;
   private body: BodyController;
   private facts?: LiveBodyFacts;
@@ -102,6 +102,12 @@ export class VoiceClient {
     if (status.conversation_mode_supported !== true)
       throw new Error(
         "This runtime needs independent body control support. Connect the updated voice runtime before starting a call.",
+      );
+    // The persona and profile travel with the call; a runtime without that
+    // field would run the call with its neutral persona, so refuse instead.
+    if (status.call_instructions_supported !== true)
+      throw new Error(
+        "This runtime cannot take Charlie’s persona per call. Update assistant-runtime before starting a call.",
       );
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.RTCPeerConnection)
       throw new Error(
@@ -190,6 +196,9 @@ export class VoiceClient {
       session_id: this.sessionId,
       sdp,
       mode: "conversation",
+      profile: APP_PROFILE,
+      // App-owned policy only: never turn transcripts or host data into instructions.
+      instructions: liveInstructions,
       history: conversationWindow(this.history).map(({ role, content }) => ({
         role,
         content,
@@ -232,8 +241,6 @@ export class VoiceClient {
       "open",
       10000,
     );
-    this.check();
-    await installLivePolicy(channel, this.policyAbort.signal);
     this.check();
     this.policyReady = true;
     this.facts = new LiveBodyFacts(channel, (receipt) => {
@@ -416,7 +423,6 @@ export class VoiceClient {
   }
   private leave = () => {
     this.ending = true;
-    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
     this.body.close();
     if (this.callId)
@@ -429,7 +435,6 @@ export class VoiceClient {
   end = (): Promise<void> => {
     if (this.closing) return this.closing;
     this.ending = true;
-    this.policyAbort.abort();
     this.controller.setSpeechLevel?.(0);
     this.body.close();
     this.media?.getAudioTracks().forEach((track) => {
@@ -475,7 +480,6 @@ export class VoiceClient {
     return this.closing;
   };
   private disposeMedia() {
-    this.policyAbort.abort();
     if (this.disposed) return;
     this.disposed = true;
     this.controller.setSpeechLevel?.(0);

@@ -5,7 +5,7 @@
  * RUNTIME_URL (and VOICE_RUNTIME_URL/BODY_RUNTIME_URL overrides) the app
  * server uses are checked here.
  */
-import { runtimeUrl } from "../lib/runtime-config";
+import { APP_PROFILE, runtimeUrl } from "../lib/runtime-config";
 
 export type PreflightResult = { ok: boolean; lines: string[] };
 
@@ -15,7 +15,7 @@ type Fetch = (
 
 // Wording shared with design-studio so both apps report the runtime alike.
 const START_HINT =
-  "Start it first (see runtime/avatar-runtime.env), then run make dev again.";
+  "Start it first (see docs/single-runtime.md), then run make dev again.";
 
 type Probe =
   | { kind: "ok"; body: Record<string, unknown> }
@@ -88,6 +88,32 @@ export async function preflight(
       );
       continue;
     }
+    if (roles.includes("text") || roles.includes("body")) {
+      // Unknown profiles are refused per request (chat 409, voice 422), so a
+      // runtime without ours registered cannot serve Charlie at all.
+      const profiles = await probe(fetcher, `${url}/api/artifacts/profile`);
+      const available =
+        profiles.kind === "ok" &&
+        Array.isArray(profiles.body.available_profiles)
+          ? (profiles.body.available_profiles as unknown[])
+          : undefined;
+      if (available && !available.includes(APP_PROFILE)) {
+        ok = false;
+        lines.push(
+          `${prefix}assistant-runtime at ${url} has no '${APP_PROFILE}' profile registered (available: ${available.join(", ") || "none"}). Add this repository's profiles/avatar-studio.toml to ASSISTANT__PROFILES and restart it.`,
+        );
+        continue;
+      }
+      if (!available) {
+        // A runtime without registered profiles would answer with its
+        // global persona instead of Charlie; the shared workflow needs the API.
+        ok = false;
+        lines.push(
+          `${prefix}assistant-runtime at ${url} has no profile registry (GET /api/artifacts/profile). Update assistant-runtime, register profiles/avatar-studio.toml in ASSISTANT__PROFILES and restart it.`,
+        );
+        continue;
+      }
+    }
     let voice = "not checked";
     if (roles.includes("voice")) {
       const status = await probe(fetcher, `${url}/api/voice/status`);
@@ -95,6 +121,8 @@ export async function preflight(
       else if (status.body.enabled !== true) voice = "disabled";
       else if (status.body.configured !== true)
         voice = "enabled, not configured";
+      else if (status.body.call_instructions_supported !== true)
+        voice = "enabled, but without per-call instructions";
       else voice = "enabled";
     }
     lines.push(
@@ -104,6 +132,10 @@ export async function preflight(
     if (voice === "disabled")
       lines.push(
         "Talk live will be refused until assistant-runtime is started with voice enabled (VOICE__ENABLED).",
+      );
+    else if (voice.endsWith("per-call instructions"))
+      lines.push(
+        "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
       );
   }
   return { ok, lines };

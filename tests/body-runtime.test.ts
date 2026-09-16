@@ -107,6 +107,30 @@ it("routes body requests to the isolated runtime and validates origin before pro
     ).status,
   ).toBe(200);
   expect(fetch.mock.calls[0][0]).toBe("http://body.local/api/chat");
+  expect(JSON.parse(fetch.mock.calls[0][1]!.body as string)).toMatchObject({
+    profile: "avatar_studio",
+    config: {
+      default_model: "openai:gpt-6-astra",
+      enable_working_memory: false,
+    },
+  });
+  // Text conversations carry the same profile with their own model defaults.
+  expect(
+    (
+      await POST(
+        new NextRequest("http://app.local/api/runtime/chat", {
+          method: "POST",
+          body: JSON.stringify({ ...input, session_id: crypto.randomUUID() }),
+        }),
+        { params: Promise.resolve({ operation: "chat" }) },
+      )
+    ).status,
+  ).toBe(200);
+  expect(fetch.mock.calls[1][0]).toBe("http://127.0.0.1:7100/api/chat");
+  expect(JSON.parse(fetch.mock.calls[1][1]!.body as string)).toMatchObject({
+    profile: "avatar_studio",
+    config: { default_model: "openai:gpt-5.6-sol", thinking_budget: 4000 },
+  });
   expect(
     (
       await POST(
@@ -119,7 +143,7 @@ it("routes body requests to the isolated runtime and validates origin before pro
       )
     ).status,
   ).toBe(403);
-  expect(fetch).toHaveBeenCalledOnce();
+  expect(fetch).toHaveBeenCalledTimes(2);
 });
 it("keeps a user utterance together across interleaved assistant fragments", () => {
   const history = [

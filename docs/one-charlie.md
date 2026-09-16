@@ -38,8 +38,10 @@ full table, transcript excerpts and diagnosis. In short:
 
 1. Rewrite `profiles/live-instructions.md` in positive, in-character terms
    (issue #48 item A). The runtime reads the file at startup through
-   `VOICE__CONVERSATION_INSTRUCTIONS_FILE`, so a prompt change needs
-   `make runtime` again; check `/api/voice/status` shows zero active calls first.
+   `VOICE__CONVERSATION_INSTRUCTIONS_FILE`, so a prompt change needs a
+   runtime restart; check `/api/voice/status` shows zero active calls first.
+   (Since issue #53 the app sends the file's text per call, so a prompt change
+   only needs a new call.)
 2. Continuation-aware admission in `lib/body-controller.ts` (item B): merge
    fragments across short backchannels, keep the in-flight decision, decide on
    the combined text; unit tests from the seven-fragment sequence.

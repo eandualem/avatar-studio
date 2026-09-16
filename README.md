@@ -29,15 +29,13 @@ The app talks to one assistant-runtime on port 7100 for text, voice and body;
 `RUNTIME_URL` in `.env.local` changes the address and `.env.example` lists the
 optional overrides. `make preflight` runs the same check on its own.
 
-The runtime needs this app's settings for Live voice (GPT-Live on, delegation
-off, the Avatar profile and Live prompt); a runtime started with plain
-defaults answers `enabled: false` on `/api/voice/status`, the preflight warns,
-and Talk live is refused. `make runtime` (or `scripts/runtime-up.sh`) is an
-optional way to launch one with those settings from the checked-in, secret-free
-`runtime/avatar-runtime.env`; it expects an assistant-runtime checkout next to
-this repository (or `RUNTIME_DIR`), your existing `codex login`, and
-`OPENAI_API_KEY` (GPT-Live audio) in the runtime's own `.env`. Nothing runs it
-for you.
+The app sends its registered profile (`avatar_studio`), model choices and the
+Live persona on every request, so the runtime needs only operator startup
+settings: this repository's `profiles/avatar-studio.toml` in
+`ASSISTANT__PROFILES`, Codex-only models, the `screen` built-in tool and GPT-Live
+enabled with `OPENAI_API_KEY` in the runtime's own `.env`. The list is in
+[single runtime](docs/single-runtime.md). A runtime without the profile fails
+the preflight; one with voice disabled starts the app but refuses Talk live.
 
 `make check` runs tests, typecheck, lint and the production build.
 

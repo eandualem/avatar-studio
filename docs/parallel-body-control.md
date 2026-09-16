@@ -120,7 +120,7 @@ not promised. Specific contract questions for the implementation session:
 - Motion execution invokes its start callback after the first successful rig
   application. Final promises retain actual pose, constraints and timings.
 
-Useful source entrypoints: `lib/voice-client.ts`, `lib/live-policy.ts`,
+Useful source entrypoints: `lib/voice-client.ts` (which sends the Live persona per call),
 `lib/host-tools.ts`, `lib/runtime.ts`, `types/avatar.ts`, `machines/`,
 `profiles/instructions.md`, `profiles/live-instructions.md`.
 Runtime deployed source is `ad3507a`; inspect `app/voice/interface.py`,

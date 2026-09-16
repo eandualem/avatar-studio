@@ -20,6 +20,11 @@ const healthy = {
     components: { llm_service: { primary_model: "openai:gpt-5.6-sol" } },
   },
 };
+const profiles = (...available: string[]) => ({
+  status: 200,
+  body: { available_profiles: available },
+});
+const registered = profiles("design_studio", "avatar_studio");
 
 describe("preflight", () => {
   it("fails with a start hint when the runtime is unreachable", async () => {
@@ -29,7 +34,7 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.lines).toEqual([
-      "assistant-runtime is not reachable at http://127.0.0.1:7100 (ECONNREFUSED). Start it first (see runtime/avatar-runtime.env), then run make dev again.",
+      "assistant-runtime is not reachable at http://127.0.0.1:7100 (ECONNREFUSED). Start it first (see docs/single-runtime.md), then run make dev again.",
     ]);
   });
 
@@ -71,6 +76,7 @@ describe("preflight", () => {
       env,
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
           body: { enabled: false, configured: true },
@@ -89,9 +95,14 @@ describe("preflight", () => {
       env,
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
-          body: { enabled: true, configured: true },
+          body: {
+            enabled: true,
+            configured: true,
+            call_instructions_supported: true,
+          },
         },
       }),
     );
@@ -106,6 +117,7 @@ describe("preflight", () => {
       { ...env, VOICE_RUNTIME_URL: "http://127.0.0.1:7115/" },
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
         "http://127.0.0.1:7115/health": new Error("ECONNREFUSED"),
       }),
     );
@@ -116,5 +128,53 @@ describe("preflight", () => {
     expect(result.lines[1]).toContain(
       "voice: assistant-runtime is not reachable at http://127.0.0.1:7115",
     );
+  });
+
+  it("fails when the avatar_studio profile is not registered", async () => {
+    const result = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile":
+          profiles("design_studio"),
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.lines).toEqual([
+      "assistant-runtime at http://127.0.0.1:7100 has no 'avatar_studio' profile registered (available: design_studio). Add this repository's profiles/avatar-studio.toml to ASSISTANT__PROFILES and restart it.",
+    ]);
+  });
+
+  it("fails on a runtime without a profile registry", async () => {
+    const result = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": { status: 404 },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.lines).toEqual([
+      "assistant-runtime at http://127.0.0.1:7100 has no profile registry (GET /api/artifacts/profile). Update assistant-runtime, register profiles/avatar-studio.toml in ASSISTANT__PROFILES and restart it.",
+    ]);
+  });
+
+  it("starts, but says Talk live is refused, when calls cannot carry instructions", async () => {
+    const result = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/voice/status": {
+          status: 200,
+          body: { enabled: true, configured: true },
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.lines).toEqual([
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, but without per-call instructions",
+      "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
+    ]);
   });
 });
