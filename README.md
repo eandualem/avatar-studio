@@ -14,37 +14,30 @@ Live-delegated movement. See [verification and activation](docs/parallel-body-ve
 
 ## Run locally
 
-Use Bun 1.4 or later and Node 22 or later, with an assistant-runtime checkout
-next to this repository (or `RUNTIME_DIR`) that is signed in through your
-existing `codex login` and keeps `OPENAI_API_KEY` (GPT-Live audio) in its own
-`.env`:
+Use Bun 1.4 or later and Node 22 or later. Start assistant-runtime yourself,
+then start the app:
 
 ```bash
 make install
 make dev
 ```
 
-`make dev` starts the runtime on port 7100 from the checked-in, secret-free
-`runtime/avatar-runtime.env` when nothing is serving the Avatar profile there,
-waits for it to become healthy, then runs the app. Open **http://127.0.0.1:7140**.
-Ctrl-C stops the app and any runtime this command started; a runtime that was
-already running is left alone. `RESTART_RUNTIME=1 make dev` forces a fresh
-runtime (for example after editing `profiles/live-instructions.md`). The runtime
-log is in `.tmp/runtime.log`.
+`make dev` only runs the app. It first checks the configured runtime and
+refuses to start when nothing answers there ("start assistant-runtime first");
+it never starts, replaces or stops a runtime. Open **http://127.0.0.1:7140**.
+The app talks to one assistant-runtime on port 7100 for text, voice and body;
+`RUNTIME_URL` in `.env.local` changes the address and `.env.example` lists the
+optional overrides. `make preflight` runs the same check on its own.
 
-Run these from this repository, not from the assistant-runtime checkout: its
-own `make dev` starts a generic runtime that replaces the Avatar one on 7100.
-
-The two halves are also available on their own:
-
-```bash
-make runtime        # only the runtime (replaces one already on 7100)
-make app            # only the app (expects a runtime on 7100)
-```
-
-The app talks to one assistant-runtime on port 7100 for text, voice and body.
-`RUNTIME_URL` in `.env.local` changes the address; `.env.example` lists the
-optional overrides.
+The runtime needs this app's settings for Live voice (GPT-Live on, delegation
+off, the Avatar profile and Live prompt); a runtime started with plain
+defaults answers `enabled: false` on `/api/voice/status`, the preflight warns,
+and Talk live is refused. `make runtime` (or `scripts/runtime-up.sh`) is an
+optional way to launch one with those settings from the checked-in, secret-free
+`runtime/avatar-runtime.env`; it expects an assistant-runtime checkout next to
+this repository (or `RUNTIME_DIR`), your existing `codex login`, and
+`OPENAI_API_KEY` (GPT-Live audio) in the runtime's own `.env`. Nothing runs it
+for you.
 
 `make check` runs tests, typecheck, lint and the production build.
 
