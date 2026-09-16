@@ -145,12 +145,26 @@ describe("preflight", () => {
     ]);
   });
 
-  it("warns, but starts, on a runtime that predates registered profiles and call instructions", async () => {
+  it("fails on a runtime without a profile registry", async () => {
     const result = await preflight(
       env,
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
         "http://127.0.0.1:7100/api/artifacts/profile": { status: 404 },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.lines).toEqual([
+      "assistant-runtime at http://127.0.0.1:7100 has no profile registry (GET /api/artifacts/profile). Update assistant-runtime, register profiles/avatar-studio.toml in ASSISTANT__PROFILES and restart it.",
+    ]);
+  });
+
+  it("starts, but says Talk live is refused, when calls cannot carry instructions", async () => {
+    const result = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
           body: { enabled: true, configured: true },
@@ -158,9 +172,9 @@ describe("preflight", () => {
       }),
     );
     expect(result.ok).toBe(true);
-    expect(result.lines[0]).toContain("does not list registered profiles");
-    expect(result.lines[1]).toBe(
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled (persona appended per call; runtime predates call instructions)",
-    );
+    expect(result.lines).toEqual([
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, but without per-call instructions",
+      "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
+    ]);
   });
 });

@@ -104,10 +104,15 @@ export async function preflight(
         );
         continue;
       }
-      if (!available)
+      if (!available) {
+        // A runtime without registered profiles would answer with its
+        // global persona instead of Charlie; the shared workflow needs the API.
+        ok = false;
         lines.push(
-          `${prefix}assistant-runtime at ${url} does not list registered profiles; requests will send '${APP_PROFILE}' and a runtime that predates profiles ignores it.`,
+          `${prefix}assistant-runtime at ${url} has no profile registry (GET /api/artifacts/profile). Update assistant-runtime, register profiles/avatar-studio.toml in ASSISTANT__PROFILES and restart it.`,
         );
+        continue;
+      }
     }
     let voice = "not checked";
     if (roles.includes("voice")) {
@@ -116,11 +121,9 @@ export async function preflight(
       else if (status.body.enabled !== true) voice = "disabled";
       else if (status.body.configured !== true)
         voice = "enabled, not configured";
-      else
-        voice =
-          status.body.call_instructions_supported === true
-            ? "enabled"
-            : "enabled (persona appended per call; runtime predates call instructions)";
+      else if (status.body.call_instructions_supported !== true)
+        voice = "enabled, but without per-call instructions";
+      else voice = "enabled";
     }
     lines.push(
       `${prefix}runtime ${url}: ${primaryModel(health.body)}, voice ${voice}`,
@@ -129,6 +132,10 @@ export async function preflight(
     if (voice === "disabled")
       lines.push(
         "Talk live will be refused until assistant-runtime is started with voice enabled (VOICE__ENABLED).",
+      );
+    else if (voice.endsWith("per-call instructions"))
+      lines.push(
+        "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
       );
   }
   return { ok, lines };

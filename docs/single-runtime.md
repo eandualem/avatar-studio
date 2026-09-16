@@ -51,8 +51,8 @@ repository any more.
   4000 by default; the Body model control adds `config.codex_service_tier`.
 - Voice creation carries `instructions` (the text of
   `profiles/live-instructions.md`) with `mode: "conversation"`. When the runtime
-  reports `call_instructions_supported: false`, the app appends the same text
-  over the data channel instead (`lib/live-policy.ts`).
+  does not report `call_instructions_supported: true`, the app appends the same text
+  a call is refused rather than spoken with the runtime's neutral persona.
 
 **Operator startup settings the runtime must have** (its own `.env`, no
 per-request field exists):
@@ -61,7 +61,7 @@ per-request field exists):
 ASSISTANT__PROFILES='["/absolute/path/to/avatar-studio/profiles/avatar-studio.toml"]'
 LLM__CODEX_ONLY=true            # Codex subscription; never an API key for models
 OAUTH__CODEX_AUTO_SYNC=true
-TOOLS__BUILTIN_TOOLS='["time","screen"]'   # screen: capture_avatar -> look_at_screen
+TOOLS__BUILTIN_TOOLS='["time","screen","artifacts"]'   # screen: capture_avatar -> look_at_screen
 VOICE__ENABLED=true             # GPT-Live audio; OPENAI_API_KEY funds it
 VOICE__MODEL=gpt-live-1
 VOICE__DELEGATION_ENABLED=false # both studios use per-call conversation mode
@@ -70,8 +70,9 @@ VOICE__MAX_DURATION_SECONDS=600
 ```
 
 Provider credentials, `OAUTH__ENCRYPTION_KEY`, tool enablement and ceilings
-stay with the operator (the profile TOML cannot declare tools). `make preflight` reports whether `avatar_studio` is in
-`GET /api/artifacts/profile` → `available_profiles` and whether voice is enabled.
+stay with the operator (the profile TOML cannot declare tools). `make preflight` fails on a runtime without a profile registry or without
+`avatar_studio` in `GET /api/artifacts/profile` → `available_profiles`, and
+reports whether voice is enabled with per-call instructions.
 
 ## Restart procedure
 

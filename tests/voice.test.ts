@@ -163,6 +163,7 @@ beforeEach(() => {
         enabled: true,
         configured: true,
         conversation_mode_supported: true,
+        call_instructions_supported: true,
       };
     if (path === "calls") return offer;
     if (path === `calls/${callId}`)
@@ -290,7 +291,12 @@ describe("live audio lifecycle and independent motion", () => {
     let allocate!: (value: typeof offer) => void;
     vi.mocked(voiceRequest).mockImplementation(async (path) =>
       path === "status"
-        ? { enabled: true, configured: true, conversation_mode_supported: true }
+        ? {
+            enabled: true,
+            configured: true,
+            conversation_mode_supported: true,
+            call_instructions_supported: true,
+          }
         : path === "calls"
           ? new Promise((resolve) => {
               allocate = resolve;
@@ -390,7 +396,12 @@ describe("live audio lifecycle and independent motion", () => {
   it("closes an allocated call when its answer is malformed", async () => {
     vi.mocked(voiceRequest).mockImplementation(async (path) =>
       path === "status"
-        ? { enabled: true, configured: true, conversation_mode_supported: true }
+        ? {
+            enabled: true,
+            configured: true,
+            conversation_mode_supported: true,
+            call_instructions_supported: true,
+          }
         : path === "calls"
           ? { call_id: callId, transport: { sdp: "" } }
           : { finalized: true },
@@ -610,19 +621,7 @@ it("rejects old delegated-only runtimes before microphone access and allocation"
 });
 
 describe("per-call persona on a shared backend", () => {
-  it("sends the profile and Live instructions on creation and skips the append when supported", async () => {
-    vi.mocked(voiceRequest).mockImplementation(async (path) =>
-      path === "status"
-        ? {
-            enabled: true,
-            configured: true,
-            conversation_mode_supported: true,
-            call_instructions_supported: true,
-          }
-        : path === "calls"
-          ? offer
-          : { finalized: true, status: "closed" },
-    );
+  it("sends the profile and Live instructions on creation without a data-channel append", async () => {
     const client = new VoiceClient("session", controller());
     await client.start();
     expect(voiceRequest).toHaveBeenCalledWith(
@@ -642,18 +641,15 @@ describe("per-call persona on a shared backend", () => {
     await client.end();
   });
 
-  it("falls back to appending the policy over the data channel on older runtimes", async () => {
+  it("refuses a runtime without per-call instructions instead of a neutral persona", async () => {
+    vi.mocked(voiceRequest).mockImplementation(async () => ({
+      enabled: true,
+      configured: true,
+      conversation_mode_supported: true,
+    }));
     const client = new VoiceClient("session", controller());
-    await client.start();
-    expect(voiceRequest).toHaveBeenCalledWith(
-      "calls",
-      "POST",
-      expect.not.objectContaining({ profile: expect.anything() }),
-    );
-    const appended = peers[0].channel.send.mock.calls.filter(([raw]) =>
-      raw.includes("session.instructions.append"),
-    );
-    expect(appended).toHaveLength(1);
+    await expect(client.start()).rejects.toThrow("Update assistant-runtime");
+    expect(getUserMedia).not.toHaveBeenCalled();
     await client.end();
   });
 });
