@@ -44,7 +44,9 @@ repository any more.
   voice call creation. Unknown profiles never fall back: chat answers 409,
   voice creation 422 before allocating a provider session.
 - `config.default_model` / `config.thinking_budget` /
-  `config.enable_working_memory: false` — text uses `TEXT_MODEL`
+  `config.enable_working_memory: false` /
+  `config.summarization_model` + `config.working_memory_model`
+  (`AUXILIARY_MODEL`, `openai:gpt-5.6-luna`) — text uses `TEXT_MODEL`
   (`openai:gpt-5.6-sol`) and Body `BODY_MODEL` (`openai:gpt-6-astra`), both
   4000 by default; the Body model control adds `config.codex_service_tier`.
 - Voice creation carries `instructions` (the text of
@@ -62,12 +64,13 @@ OAUTH__CODEX_AUTO_SYNC=true
 TOOLS__BUILTIN_TOOLS='["time","screen"]'   # screen: capture_avatar -> look_at_screen
 VOICE__ENABLED=true             # GPT-Live audio; OPENAI_API_KEY funds it
 VOICE__MODEL=gpt-live-1
-VOICE__MAX_SESSIONS=1
-VOICE__MAX_DURATION_SECONDS=300
+VOICE__DELEGATION_ENABLED=false # both studios use per-call conversation mode
+VOICE__MAX_SESSIONS=4           # shared ceiling; the app ends its own call
+VOICE__MAX_DURATION_SECONDS=600
 ```
 
-Provider credentials, `OAUTH__ENCRYPTION_KEY`, auxiliary models and ceilings
-stay with the operator. `make preflight` reports whether `avatar_studio` is in
+Provider credentials, `OAUTH__ENCRYPTION_KEY`, tool enablement and ceilings
+stay with the operator (the profile TOML cannot declare tools). `make preflight` reports whether `avatar_studio` is in
 `GET /api/artifacts/profile` → `available_profiles` and whether voice is enabled.
 
 ## Restart procedure

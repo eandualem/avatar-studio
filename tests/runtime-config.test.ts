@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_PROFILE,
+  DEFAULT_AUXILIARY_MODEL,
   DEFAULT_BODY_MODEL,
   DEFAULT_TEXT_MODEL,
   DEFAULT_THINKING_BUDGET,
@@ -39,6 +40,8 @@ describe("withBodyConfig", () => {
         default_model: DEFAULT_BODY_MODEL,
         thinking_budget: DEFAULT_THINKING_BUDGET,
         enable_working_memory: false,
+        summarization_model: DEFAULT_AUXILIARY_MODEL,
+        working_memory_model: DEFAULT_AUXILIARY_MODEL,
       },
     });
   });
@@ -67,7 +70,7 @@ describe("withBodyConfig", () => {
       {},
     );
     expect(result.profile).toBe("other");
-    expect(result.config).toEqual({
+    expect(result.config).toMatchObject({
       default_model: "openai:custom",
       thinking_budget: DEFAULT_THINKING_BUDGET,
       enable_working_memory: false,
@@ -84,7 +87,18 @@ describe("withTextConfig", () => {
         default_model: DEFAULT_TEXT_MODEL,
         thinking_budget: DEFAULT_THINKING_BUDGET,
         enable_working_memory: false,
+        summarization_model: DEFAULT_AUXILIARY_MODEL,
+        working_memory_model: DEFAULT_AUXILIARY_MODEL,
       },
+    });
+  });
+
+  it("sends the auxiliary model from AUXILIARY_MODEL", () => {
+    expect(
+      withTextConfig({}, { AUXILIARY_MODEL: "openai:gpt-5.6-sol" }).config,
+    ).toMatchObject({
+      summarization_model: "openai:gpt-5.6-sol",
+      working_memory_model: "openai:gpt-5.6-sol",
     });
   });
 

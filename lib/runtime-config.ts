@@ -7,6 +7,7 @@ const DEFAULT_RUNTIME_URL = "http://127.0.0.1:7100";
 export const APP_PROFILE = "avatar_studio";
 export const DEFAULT_TEXT_MODEL = "openai:gpt-5.6-sol";
 export const DEFAULT_BODY_MODEL = "openai:gpt-6-astra";
+export const DEFAULT_AUXILIARY_MODEL = "openai:gpt-5.6-luna";
 export const DEFAULT_THINKING_BUDGET = 4000;
 
 type Env = Record<string, string | undefined>;
@@ -39,6 +40,8 @@ export type RequestConfig = {
   default_model: string;
   thinking_budget: number;
   enable_working_memory: boolean;
+  summarization_model: string;
+  working_memory_model: string;
 };
 type Configured<T> = T & {
   profile: string;
@@ -52,7 +55,8 @@ function budget(raw: string | undefined) {
 
 function withConfig<T extends Record<string, unknown>>(
   body: T,
-  defaults: RequestConfig,
+  env: Env,
+  defaults: Pick<RequestConfig, "default_model" | "thinking_budget">,
 ): Configured<T> {
   const supplied =
     body.config && typeof body.config === "object"
@@ -61,7 +65,14 @@ function withConfig<T extends Record<string, unknown>>(
   return {
     ...body,
     profile: typeof body.profile === "string" ? body.profile : APP_PROFILE,
-    config: { ...defaults, ...supplied },
+    config: {
+      ...defaults,
+      enable_working_memory: false,
+      // Auxiliary choices survive whatever the shared backend defaults to.
+      summarization_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
+      working_memory_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
+      ...supplied,
+    },
   };
 }
 
@@ -70,10 +81,9 @@ export function withTextConfig<T extends Record<string, unknown>>(
   body: T,
   env: Env = process.env,
 ): Configured<T> {
-  return withConfig(body, {
+  return withConfig(body, env, {
     default_model: env.TEXT_MODEL || DEFAULT_TEXT_MODEL,
     thinking_budget: budget(env.TEXT_THINKING_BUDGET),
-    enable_working_memory: false,
   });
 }
 
@@ -82,9 +92,8 @@ export function withBodyConfig<T extends Record<string, unknown>>(
   body: T,
   env: Env = process.env,
 ): Configured<T> {
-  return withConfig(body, {
+  return withConfig(body, env, {
     default_model: env.BODY_MODEL || DEFAULT_BODY_MODEL,
     thinking_budget: budget(env.BODY_THINKING_BUDGET),
-    enable_working_memory: false,
   });
 }
