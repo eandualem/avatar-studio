@@ -19,3 +19,6 @@ blender/mixamo-ready.blend
 renders/*
 !renders/hero.png
 !renders/turnaround.png
+
+# Shared local memory for agents on this device; never committed.
+/.backbone/
