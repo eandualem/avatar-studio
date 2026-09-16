@@ -1,6 +1,6 @@
 /**
  * `make dev` preflight: report whether the configured assistant-runtime is
- * reachable before the app starts. Elias starts the runtime himself; this
+ * reachable before the app starts. The runtime is started separately; this
  * never starts, replaces or stops it. Bun loads .env/.env.local, so the same
  * RUNTIME_URL (and VOICE_RUNTIME_URL/BODY_RUNTIME_URL overrides) the app
  * server uses are checked here.

@@ -17,19 +17,19 @@ function numericFields(
     numericFields(child, [...path, key]),
   );
 }
+// "left · position · 1" reads as "left · position · y"; curls name the finger.
+const AXES = ["x", "y", "z"];
+const FINGERS = ["thumb", "index", "middle", "ring", "pinky"];
 function fieldLabel(path: string[]) {
-  const last = path.at(-1)!;
+  const index = Number(path.at(-1));
   const parent = path.at(-2);
-  if (parent === "position" || parent === "offset")
-    return [...path.slice(0, -1), ["x", "y", "z"][Number(last)]].join(" · ");
-  if (parent === "curls")
-    return [
-      ...path.slice(0, -1),
-      ["thumb", "index", "middle", "ring", "pinky"][Number(last)],
-    ].join(" · ");
-  if (parent === "direction")
-    return [...path.slice(0, -1), ["x", "y", "z"][Number(last)]].join(" · ");
-  return path.join(" · ");
+  const names =
+    parent === "position" || parent === "offset" || parent === "direction"
+      ? AXES
+      : parent === "curls"
+        ? FINGERS
+        : undefined;
+  return (names ? [...path.slice(0, -1), names[index]] : path).join(" · ");
 }
 
 export function MotionLab({ ready }: { ready: boolean }) {
@@ -56,6 +56,7 @@ export function MotionLab({ ready }: { ready: boolean }) {
     /* The JSON editor remains available for malformed input. */
   }
   const selected = editable[point];
+  // The last receipt: a MotionResult, or an error/reset/capture shape.
   const result = lab.report?.receipt.result as
     | (Partial<Omit<MotionResult, "status">> & {
         status?: MotionResult["status"] | "reset";

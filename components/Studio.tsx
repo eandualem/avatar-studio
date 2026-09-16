@@ -58,20 +58,16 @@ function Workspace() {
   const busy = chat.state !== "idle";
   const live = voice.state !== VoicePhase.Idle;
   const voiceReady = voice.state === VoicePhase.Active;
-  const voiceStatus =
-    voice.state === VoicePhase.Connecting
-      ? "Voice · Connecting"
-      : voice.state === VoicePhase.Closing
-        ? "Voice · Ending call"
-        : voice.state === VoicePhase.Cancelling
-          ? "Body · Stopping"
-          : voice.data.view?.soundBlocked
-            ? "Voice · Enable sound"
-            : voice.data.view?.speaking
-              ? "Voice · Speaking"
-              : voice.data.view?.micMuted
-                ? "Voice · Microphone muted"
-                : "Voice · Listening";
+  const voiceStatus = (() => {
+    const view = voice.data.view;
+    if (voice.state === VoicePhase.Connecting) return "Voice · Connecting";
+    if (voice.state === VoicePhase.Closing) return "Voice · Ending call";
+    if (voice.state === VoicePhase.Cancelling) return "Body · Stopping";
+    if (view?.soundBlocked) return "Voice · Enable sound";
+    if (view?.speaking) return "Voice · Speaking";
+    if (view?.micMuted) return "Voice · Microphone muted";
+    return "Voice · Listening";
+  })();
   const listening = speech.state === "listening";
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -81,24 +77,17 @@ function Workspace() {
     chat.actions.send(text);
     setDraft("");
   };
-  const status =
-    avatarState === "failed"
-      ? "Avatar unavailable"
-      : avatarState !== "ready"
-        ? "Getting ready"
-        : lab.active
-          ? lab.running
-            ? "Testing movement"
-            : "Dev test ready"
-          : live
-            ? voiceStatus
-            : listening
-              ? "Listening to you"
-              : chat.state === "moving"
-                ? "Expressing a thought"
-                : busy
-                  ? "Thinking with you"
-                  : "Ready to listen";
+  // The one status line under Charlie, most specific condition first.
+  const status = (() => {
+    if (avatarState === "failed") return "Avatar unavailable";
+    if (avatarState !== "ready") return "Getting ready";
+    if (lab.active) return lab.running ? "Testing movement" : "Dev test ready";
+    if (live) return voiceStatus;
+    if (listening) return "Listening to you";
+    if (chat.state === "moving") return "Expressing a thought";
+    if (busy) return "Thinking with you";
+    return "Ready to listen";
+  })();
   return (
     <main className="studio">
       <button

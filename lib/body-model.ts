@@ -41,17 +41,17 @@ export const BODY_MODEL_OPTIONS: readonly BodyModelOption[] = [
   {
     id: "openai:gpt-5.6-luna",
     label: "GPT-5.6 Luna",
-    note: "Codex subscription",
+    note: "OpenAI key or Codex subscription",
   },
   {
     id: "openai:gpt-5.6-sol",
     label: "GPT-5.6 Sol",
-    note: "Codex subscription",
+    note: "OpenAI key or Codex subscription",
   },
   {
     id: "openai:gpt-6-astra",
     label: "GPT-6 Astra",
-    note: "~50 t/s, Codex subscription",
+    note: "~50 t/s, OpenAI key or Codex subscription",
   },
   {
     id: "openai:gpt-6-astra",
