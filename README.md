@@ -1,116 +1,147 @@
 # Avatar Studio
 
-Charlie is an assistant with a live 3D robot body. Talk through an idea live,
-write or dictate a message, or ask Charlie to move. The assistant composes hand, finger,
-leg, torso and head motion through frontend tools; the browser solves each pose.
-There are no baked animation clips or a fixed gesture menu.
+Avatar Studio is a voice assistant with a body. Charlie, a 3D robot, stands
+on the left of the screen; you talk to him, type to him, or dictate, and he
+answers in speech or text while moving: a wave with a greeting, a
+thoughtful lean on a hard question, a run in place if you ask for one. No
+animation clips are played. A model writes where his hands, feet, torso and
+head should be and when, and the browser solves the joints every frame.
 
-Built with Next.js, Three.js and XState, backed by
-[assistant-runtime](https://github.com/eandualem/assistant-runtime).
-The approved Blender model and reference layout are preserved.
+It exists to demonstrate
+[assistant-runtime](https://pypi.org/project/assistant-runtime/), an
+assistant backend that an application puts behind its own interface, on a
+task that needs two models at once: one that talks and one that moves. It is
+the sibling of [design-studio](https://github.com/eandualem/design-studio),
+built the same way: one page, no accounts, no database, about 6,500 lines of
+TypeScript.
 
-[Independent speech and body control](docs/parallel-body-control.md) replaces
-Live-delegated movement. See [verification and activation](docs/parallel-body-verification.md).
+![The studio: Charlie, the conversation, and the Talk live and Body model controls](public/screenshot.jpg)
 
-## Run locally
+## What it demonstrates
 
-Use Bun 1.4 or later and Node 22 or later. Start assistant-runtime yourself,
-then start the app:
+- **Host tools with numbers, not names.** The assistant has three tools the
+  app declares: `move_avatar` (up to 16 timed waypoints for hands, fingers,
+  feet, pelvis, torso, shoulders and head, with repeat cycles for rhythmic
+  motion), `get_pose` and `capture_avatar`. The app validates each call,
+  runs it through an IK solver with joint limits, collision and support
+  checks, and returns a receipt with the actual pose and whatever
+  constrained it. See [docs/motion.md](docs/motion.md).
+- **Two model roles in parallel.** *Talk live* puts GPT-Live on the
+  conversation over WebRTC. A separate body controller receives each
+  utterance and answers with exactly one tool call on the model you pick in
+  the header. Speech never waits for planning; the app owns admission,
+  cancellation and the quiet facts that tell the voice when movement really
+  started. See [docs/voice.md](docs/voice.md).
+- **Host context.** Every request carries the actual pose, the coordinate
+  system and the tool schemas, so the model composes from what is true now.
+- **Continuations and cancellation.** A tool call pauses the assistant's
+  turn; the app performs it and resumes the same message with the receipt.
+  Stop interrupts the motion and the request, and a late reply cannot move
+  the body afterwards.
+- **Vision on itself.** Ask Charlie how a pose looks: he captures the
+  canvas and inspects the image with the runtime's `look_at_screen`.
+- **Per-request configuration.** The registered profile, model choices and
+  the Live persona travel with each request, so one plainly started runtime
+  serves this app beside others.
+
+## Running it
+
+You need [bun](https://bun.sh), a way to install a Python command line tool
+([uv](https://docs.astral.sh/uv/) or pip), and an `OPENAI_API_KEY`. Text,
+body planning and voice all default to OpenAI models, so one key is enough;
+other providers work for the body model if you add their keys.
+
+The runtime is a separate process. Install it once and run it beside the
+studio.
+
+**Terminal 1, the runtime:**
 
 ```bash
-make install
+uv tool install 'assistant-runtime[voice]'   # or: pip install 'assistant-runtime[voice]'
+
+export OPENAI_API_KEY=sk-...                  # the runtime also reads a .env in the directory you run it in
+export VOICE__ENABLED=true                    # GPT-Live audio; bills connected time
+
+# register this app's profile, the prompt artifacts that make the runtime Charlie.
+# The path must be absolute; `echo "$PWD/profiles/avatar-studio.toml"` in this
+# repository prints it. One runtime can register several apps' profiles.
+export ASSISTANT__PROFILES='["/absolute/path/to/avatar-studio/profiles/avatar-studio.toml"]'
+
+assistant-runtime serve --port 7100
+```
+
+**Terminal 2, the studio:**
+
+```bash
+git clone https://github.com/eandualem/avatar-studio
+cd avatar-studio
+bun install
 make dev
 ```
 
-`make dev` only runs the app. It first checks the configured runtime and
-refuses to start when nothing answers there ("start assistant-runtime first");
-it never starts, replaces or stops a runtime. Open **http://127.0.0.1:7140**.
-The app talks to one assistant-runtime on port 7100 for text, voice and body;
-`RUNTIME_URL` in `.env.local` changes the address and `.env.example` lists the
-optional overrides. `make preflight` runs the same check on its own.
+Open <http://127.0.0.1:7140>. Type *"Wave at me"* and Charlie waves; ask
+*"How does your pose look?"* and he takes a look at himself.
 
-The app sends its registered profile (`avatar_studio`), model choices and the
-Live persona on every request, so the runtime needs only operator startup
-settings: this repository's `profiles/avatar-studio.toml` in
-`ASSISTANT__PROFILES`, Codex-only models, the `screen` built-in tool and GPT-Live
-enabled with `OPENAI_API_KEY` in the runtime's own `.env`. The list is in
-[single runtime](docs/single-runtime.md). A runtime without the profile fails
-the preflight; one with voice disabled starts the app but refuses Talk live.
+`make dev` checks the runtime first and exits with one line saying what to
+do if it is not reachable, has no `avatar_studio` profile registered, or is
+too old. It never starts or stops the runtime. The studio talks to
+`http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere, and
+`.env.example` lists the other server-side settings (which model plans text
+and which plans movement). Conversations are kept in your browser; the
+runtime's memory of them lasts as long as the runtime process unless you
+give it Postgres.
 
-`make check` runs tests, typecheck, lint and the production build.
+### Talking to him
 
-`GET http://127.0.0.1:7100/health` should report `codex_only: true`, and
-`/api/voice/status` should report voice enabled and configured. See
-[single runtime](docs/single-runtime.md) for what the file sets and why there
-is exactly one instance.
+Press **Talk live**, allow the microphone, and talk. Charlie answers in
+speech and his body follows the conversation; **Stop movement** freezes him
+without ending the call, the microphone button mutes you, **End call** hangs
+up. The **Body model** control in the header picks which model plans the
+movement; the fast ones are listed with the key they need.
+`make check` runs the tests, typecheck, lint and build.
 
-API credentials belong in assistant-runtime, never the frontend. This is a local
-application; public deployment and authentication are outside this milestone.
+## Using it
 
-For subscription-backed chat, body tools and avatar inspection, see
-[Codex subscription setup](docs/codex-subscription.md). Codex login and the
-runtime connection are separate; the subscription-only configuration rejects
-backend requests rather than falling back to API billing.
+Charlie stands in the left pane; the conversation is on the right. The
+composer takes typed text, or dictation through the browser's speech
+recognition (**Dictate a message**; it only fills the box, you still press
+Send). **New conversation** starts a fresh one; earlier ones are in the list.
+**Dev test** opens a panel for driving the body by hand: pick an example
+such as *Small wave* or *Run in place*, edit the numbers or the raw JSON,
+run it, read the receipt. It is the fastest way to see what the solver
+allows.
 
-Try: “Raise your left hand, point up with your index finger, and look toward it.”
-Then: “Relax both hands slowly.” Stop interrupts movement and the current reply.
-Also try: “Crouch slightly with both feet flat,” or “Shift your weight onto your
-right foot, then slowly lift your left foot and hold it.”
-The microphone fills the composer for editing before sending.
+## How it is built
 
-For direct audio, enable assistant-runtime's **GPT-Live 1** integration and select
-**Talk live**. It connects microphone and speaker and displays user/Live speech. A separate
-subscription-backed controller moves Charlie from each new user utterance.
-Mute, stop movement, reset the pose, or end the call from the live controls.
-See [voice setup and limits](docs/voice.md). OpenAI API access is required for audio;
-credentials stay in the runtime. No microphone starts automatically.
+Next.js, Three.js and XState, in four layers that do not reach past each
+other: components render props, hooks expose `{ state, data, actions }`,
+machines hold every transition and side effect, and `lib/` is pure
+functions and clients.
 
-## Current scope
+| Directory | What lives there |
+|---|---|
+| `machines/` | `appMachine` (root), `avatarMachine`, `conversationMachine`, `speechMachine`, `voiceMachine` |
+| `hooks/` | `useStudio`, the bridge between machines and components |
+| `components/` | `Studio`, `MotionLab` (the Dev panel), the Body model control, timing rows |
+| `lib/` | the renderer, the IK adapter and collision checks (`body/`), interpolation, host tools, the runtime and voice clients, the body controller |
+| `types/` | Zod schemas for every wire shape |
+| `profiles/` | the assistant profile, the two prompts and the movement skill |
+| `blender/` | the Python that builds and rigs Charlie; `rigged.blend` is the source of the GLB |
 
-**Dev test**, beside **Talk live**, opens direct movement controls. Choose an
-editable example, tweak waypoint numbers or JSON, and run the same tool the
-assistant uses. Read the pose, stop a movement, reset Charlie instantly for the
-next test, and copy its input/result with
-timing and constraint feedback. Close Dev test to return to conversation.
-The timing preview names the channels imposing a minimum duration. **Kicking
-stance** demonstrates a supported leg extension; **Capture avatar** previews the
-fresh avatar-only images available to Charlie for visual inspection.
-See [movement testing and guidance](docs/motion-testing.md).
-
-- Approved 65-bone robot with all 134 rigid shell pieces, exported as GLB.
-- Model-created hand and ankle targets, finger curls, palm roll, pelvis shifts,
-  torso bends/twists, shoulder lift and head angles.
-- Bounded IK from closed-chain-ik, one-way elbow/knee hinges, wrist limits,
-  and Rapier checks for approximate self-collision and planted-foot support.
-- Smooth transitions, cancellation, typed chat and local history.
-- Browser microphone dictation, where SpeechRecognition is supported.
-- GPT-Live audio, transcripts, independent body actions and explicit call controls.
-
-Complete anatomical modelling, dynamic walking/balance, detailed mesh collision,
-facial shapes and lip-sync remain future work. Text-chat replies arrive per model
-turn; only user and Live speech appear during calls; body decisions stay internal.
-See [architecture and limits](docs/architecture.md)
-and [solver selection](docs/motion-solvers.md).
-
-## Checks and asset rebuild
+The interesting files are `lib/body-controller.ts`, where utterances become
+admitted, cancelled or superseded movements, and `lib/motion.ts`, where a
+plan becomes per-frame joint targets under rate limits.
+[docs/architecture.md](docs/architecture.md) is the map;
+[blender/README.md](blender/README.md) rebuilds the character.
 
 ```bash
-bun run test
-bun run typecheck
-bun run lint
-bun run build
-bun run start
+bun run lint && bun run test && bun run build
 ```
 
-With `blender/rigged.blend` open through the Blender bridge:
+Contributor notes are in [AGENTS.md](AGENTS.md).
 
-```bash
-scripts/bl run blender/rig/export_web.py
-```
+## License
 
-This exports only the rigged character in rest pose to `public/avatar/robot.glb`;
-it restores the Blender pose after exporting. The build and rig workflows are
-in [blender/README.md](blender/README.md) and [blender/rig/README.md](blender/rig/README.md).
-Source references live in `references/`; approved stills live in `renders/`.
-
-MIT.
+MIT, see [LICENSE](LICENSE). The IK solver
+([closed-chain-ik-js](https://github.com/gkjohnson/closed-chain-ik-js)) and
+[Rapier](https://rapier.rs) are Apache-2.0.

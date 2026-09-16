@@ -90,6 +90,10 @@ export class VoiceClient {
   private check() {
     if (this.ending) throw abortError();
   }
+  // One call, in order: runtime capability check, microphone, peer connection
+  // and data channel, offer, runtime allocation, answer, provider start, then
+  // the body controller and the unmuted microphone. Each await re-checks
+  // `ending` so End call during setup unwinds cleanly.
   async start() {
     const status = await voiceRequest("status");
     this.check();
@@ -134,6 +138,7 @@ export class VoiceClient {
       throw abortError();
     }
     this.media = media;
+    // Muted until the call is fully ready; nothing is sent before then.
     for (const track of media.getAudioTracks()) track.enabled = false;
     this.peer = new RTCPeerConnection();
     window.addEventListener("pagehide", this.leave);
@@ -170,6 +175,8 @@ export class VoiceClient {
       });
       peer.addTrack(track, media);
     }
+    // The channel carries provider events for observation and the four
+    // client events the runtime allows; it never executes application tools.
     const channel = peer.createDataChannel("oai-events");
     let providerStarted = false;
     channel.onmessage = (event) => {

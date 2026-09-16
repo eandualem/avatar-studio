@@ -31,8 +31,8 @@ visible stops; choose a few meaningful targets. The frontend may extend timing
 to enforce speed limits, so requesting 0.2 seconds cannot force a full arm raise
 to finish that quickly. Use smaller excursions for a brisk gesture.
 
-Requested timings below are one third of the original examples, per Elias’s
-browser testing. They do not change the solver’s speed limits.
+The timings below were shortened to a third after browser testing looked
+sluggish. They do not change the solver’s speed limits.
 
 Starting points from standing (height = 1, X robot left, Y up, Z forward):
 
