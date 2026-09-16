@@ -14,25 +14,37 @@ Live-delegated movement. See [verification and activation](docs/parallel-body-ve
 
 ## Run locally
 
-Use Bun 1.4 or later and Node 22 or later:
+Use Bun 1.4 or later and Node 22 or later, with an assistant-runtime checkout
+next to this repository (or `RUNTIME_DIR`) that is signed in through your
+existing `codex login` and keeps `OPENAI_API_KEY` (GPT-Live audio) in its own
+`.env`:
 
 ```bash
 make install
 make dev
 ```
 
-Open **http://127.0.0.1:7140**. The app talks to one assistant-runtime on
-port 7100 for text, voice and body. `RUNTIME_URL` in `.env.local` changes the
-address; `.env.example` lists the optional overrides.
+`make dev` starts the runtime on port 7100 from the checked-in, secret-free
+`runtime/avatar-runtime.env` when nothing is serving the Avatar profile there,
+waits for it to become healthy, then runs the app. Open **http://127.0.0.1:7140**.
+Ctrl-C stops the app and any runtime this command started; a runtime that was
+already running is left alone. `RESTART_RUNTIME=1 make dev` forces a fresh
+runtime (for example after editing `profiles/live-instructions.md`). The runtime
+log is in `.tmp/runtime.log`.
 
-Start the runtime with the launch script. It expects an assistant-runtime
-checkout next to this repository (or `RUNTIME_DIR`), signs in through your
-existing `codex login`, and keeps `OPENAI_API_KEY` (GPT-Live audio) in the
-runtime's own `.env`; the checked-in `runtime/avatar-runtime.env` holds no secrets:
+Run these from this repository, not from the assistant-runtime checkout: its
+own `make dev` starts a generic runtime that replaces the Avatar one on 7100.
+
+The two halves are also available on their own:
 
 ```bash
-make runtime        # or scripts/runtime-up.sh
+make runtime        # only the runtime (replaces one already on 7100)
+make app            # only the app (expects a runtime on 7100)
 ```
+
+The app talks to one assistant-runtime on port 7100 for text, voice and body.
+`RUNTIME_URL` in `.env.local` changes the address; `.env.example` lists the
+optional overrides.
 
 `make check` runs tests, typecheck, lint and the production build.
 

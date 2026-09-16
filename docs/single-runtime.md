@@ -50,10 +50,15 @@ restarted from that commit on September 15, 2026 with `make runtime`.
 
 ## Restart procedure
 
-There is no supervisor; a reboot stops the runtime. Restart it with
+There is no supervisor; a reboot stops the runtime. `make dev` (September 16,
+2026) starts it automatically when nothing on 7100 answers `/api/voice/status`
+with voice enabled and delegation off, and `RESTART_RUNTIME=1 make dev` or
+`make runtime` replaces a running one. Both go through
 `scripts/runtime-up.sh`, which sets the absolute profile path and an ephemeral
 encryption key in the shell (shell variables override the env file in uv) and
 runs `assistant-runtime serve` from the runtime checkout. Starting the server allocates no
 paid Live call and makes no model request. Keep launch files and logs outside
-`/tmp`. Check `GET /health` for `components.llm_service.codex_only = true`,
+`/tmp` (`make dev` writes `.tmp/runtime.log`). Do not run the runtime
+checkout's own `make dev`: it replaces the Avatar runtime on 7100 with a generic
+one that has voice disabled. Check `GET /health` for `components.llm_service.codex_only = true`,
 `primary_model = openai:gpt-5.6-sol` and voice configured before starting a call.

@@ -1,6 +1,6 @@
 # Avatar Studio: one Next.js app (7140) and one assistant-runtime (7100).
 SHELL := /bin/bash
-.PHONY: help install dev runtime test typecheck lint build check
+.PHONY: help install dev app runtime test typecheck lint build check
 
 help: ## List targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -8,10 +8,13 @@ help: ## List targets
 install: ## Install app dependencies
 	bun install
 
-dev: ## Run the app on http://127.0.0.1:7140
+dev: ## Start the runtime on 7100 if needed, then the app on http://127.0.0.1:7140
+	scripts/dev.sh
+
+app: ## Run only the app (expects a runtime on 7100)
 	bun run dev
 
-runtime: ## Start assistant-runtime on 7100 from runtime/avatar-runtime.env (RUNTIME_DIR=../assistant-runtime)
+runtime: ## Run only the runtime on 7100, replacing one already there (RUNTIME_DIR=../assistant-runtime)
 	scripts/runtime-up.sh $(ARGS)
 
 test: ## Run unit tests
