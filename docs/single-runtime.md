@@ -30,35 +30,54 @@ In-memory histories on those instances are gone. The evidence recorded in the
 earlier documents (response IDs, timings, session IDs) remains valid history;
 the ports and `/tmp` paths in them no longer exist.
 
-## Current setup
+## Current setup: one shared backend, app settings per request
 
-`runtime/avatar-runtime.env` is the single launch file: Codex-only Sol as the
-primary model, Luna for summaries and working memory (off), this repository's
-profile, the `time` and `screen` built-ins, and GPT-Live in conversation-only
-mode with the Live prompt. It holds no credentials. The launch script points the runtime at
-`profiles/live-instructions.md` through `VOICE__CONVERSATION_INSTRUCTIONS_FILE`
-(runtime PR #138), so the prompt is never copied.
+Since September 16, 2026 (issue #53, runtime PR #143 / issue #142) the runtime
+is started by the operator with plain startup settings and Avatar Studio sends
+everything app-specific on each request; there is no launch file in this
+repository any more.
 
-Body decisions choose their model per request: the app's body proxy adds
-`config.default_model` and `config.thinking_budget` (env `BODY_MODEL`, default
-`openai:gpt-6-astra`; `BODY_THINKING_BUDGET`, default 4000) so text keeps Sol on
-the same process. The Body model control can also request Codex Fast per decision
-(`config.codex_service_tier`); the launch env keeps the fallback tier at
-`default`. Runtime PR #138 (issue #131), merged as `8019c99`, provides these per-request
-fields, the Cerebras provider, prompt files and the deployment recipe. 7100 was
-restarted from that commit on September 15, 2026 with `make runtime`.
+**Sent by the app on every request** (server-side proxies, never the browser):
+
+- `profile: "avatar_studio"` — the name registered in
+  `profiles/avatar-studio.toml`, on text chat, Body decisions, receipts and
+  voice call creation. Unknown profiles never fall back: chat answers 409,
+  voice creation 422 before allocating a provider session.
+- `config.default_model` / `config.thinking_budget` /
+  `config.enable_working_memory: false` — text uses `TEXT_MODEL`
+  (`openai:gpt-5.6-sol`) and Body `BODY_MODEL` (`openai:gpt-6-astra`), both
+  4000 by default; the Body model control adds `config.codex_service_tier`.
+- Voice creation carries `instructions` (the text of
+  `profiles/live-instructions.md`) with `mode: "conversation"`. When the runtime
+  reports `call_instructions_supported: false`, the app appends the same text
+  over the data channel instead (`lib/live-policy.ts`).
+
+**Operator startup settings the runtime must have** (its own `.env`, no
+per-request field exists):
+
+```bash
+ASSISTANT__PROFILES='["/absolute/path/to/avatar-studio/profiles/avatar-studio.toml"]'
+LLM__CODEX_ONLY=true            # Codex subscription; never an API key for models
+OAUTH__CODEX_AUTO_SYNC=true
+TOOLS__BUILTIN_TOOLS='["time","screen"]'   # screen: capture_avatar -> look_at_screen
+VOICE__ENABLED=true             # GPT-Live audio; OPENAI_API_KEY funds it
+VOICE__MODEL=gpt-live-1
+VOICE__MAX_SESSIONS=1
+VOICE__MAX_DURATION_SECONDS=300
+```
+
+Provider credentials, `OAUTH__ENCRYPTION_KEY`, auxiliary models and ceilings
+stay with the operator. `make preflight` reports whether `avatar_studio` is in
+`GET /api/artifacts/profile` → `available_profiles` and whether voice is enabled.
 
 ## Restart procedure
 
-There is no supervisor; a reboot stops the runtime, and Elias starts it
-himself. The app's `make dev` only checks that the configured runtime answers
-(`scripts/preflight.ts`, since September 16, 2026); it never starts, replaces or
-stops one, and it warns when `/api/voice/status` reports voice disabled. The
-optional `make runtime` goes through `scripts/runtime-up.sh`, which sets the absolute profile path and an ephemeral
-encryption key in the shell (shell variables override the env file in uv) and
-runs `assistant-runtime serve` from the runtime checkout. Starting the server allocates no
-paid Live call and makes no model request. Keep launch files and logs outside
-`/tmp`. The runtime checkout's own `make dev` starts a generic runtime with
-voice disabled; how both apps share one independently started backend without
-this app's launch file is the runtime's open question. Check `GET /health` for `components.llm_service.codex_only = true`,
-`primary_model = openai:gpt-5.6-sol` and voice configured before starting a call.
+There is no supervisor; a reboot stops the runtime, and the operator starts it
+again from the assistant-runtime checkout (`make dev` there) with the startup
+settings above. The app's `make dev` only checks that the configured runtime
+answers (`scripts/preflight.ts`); it never starts, replaces or stops one.
+Starting the server allocates no paid Live call and makes no model request.
+Keep checkouts, logs and keys outside `/tmp`. Check `GET /health` for
+`components.llm_service.codex_only = true`, `/api/artifacts/profile` for
+`avatar_studio`, and `/api/voice/status` for `enabled`, `configured` and
+`call_instructions_supported` before starting a call.

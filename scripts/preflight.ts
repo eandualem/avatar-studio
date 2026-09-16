@@ -5,7 +5,7 @@
  * RUNTIME_URL (and VOICE_RUNTIME_URL/BODY_RUNTIME_URL overrides) the app
  * server uses are checked here.
  */
-import { runtimeUrl } from "../lib/runtime-config";
+import { APP_PROFILE, runtimeUrl } from "../lib/runtime-config";
 
 export type PreflightResult = { ok: boolean; lines: string[] };
 
@@ -15,7 +15,7 @@ type Fetch = (
 
 // Wording shared with design-studio so both apps report the runtime alike.
 const START_HINT =
-  "Start it first (see runtime/avatar-runtime.env), then run make dev again.";
+  "Start it first (see docs/single-runtime.md), then run make dev again.";
 
 type Probe =
   | { kind: "ok"; body: Record<string, unknown> }
@@ -88,6 +88,27 @@ export async function preflight(
       );
       continue;
     }
+    if (roles.includes("text") || roles.includes("body")) {
+      // Unknown profiles are refused per request (chat 409, voice 422), so a
+      // runtime without ours registered cannot serve Charlie at all.
+      const profiles = await probe(fetcher, `${url}/api/artifacts/profile`);
+      const available =
+        profiles.kind === "ok" &&
+        Array.isArray(profiles.body.available_profiles)
+          ? (profiles.body.available_profiles as unknown[])
+          : undefined;
+      if (available && !available.includes(APP_PROFILE)) {
+        ok = false;
+        lines.push(
+          `${prefix}assistant-runtime at ${url} has no '${APP_PROFILE}' profile registered (available: ${available.join(", ") || "none"}). Add this repository's profiles/avatar-studio.toml to ASSISTANT__PROFILES and restart it.`,
+        );
+        continue;
+      }
+      if (!available)
+        lines.push(
+          `${prefix}assistant-runtime at ${url} does not list registered profiles; requests will send '${APP_PROFILE}' and a runtime that predates profiles ignores it.`,
+        );
+    }
     let voice = "not checked";
     if (roles.includes("voice")) {
       const status = await probe(fetcher, `${url}/api/voice/status`);
@@ -95,7 +116,11 @@ export async function preflight(
       else if (status.body.enabled !== true) voice = "disabled";
       else if (status.body.configured !== true)
         voice = "enabled, not configured";
-      else voice = "enabled";
+      else
+        voice =
+          status.body.call_instructions_supported === true
+            ? "enabled"
+            : "enabled (persona appended per call; runtime predates call instructions)";
     }
     lines.push(
       `${prefix}runtime ${url}: ${primaryModel(health.body)}, voice ${voice}`,

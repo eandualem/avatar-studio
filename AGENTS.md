@@ -17,8 +17,11 @@ exists: the runtime. The approved body model and procedural rig are complete.
 ## Single runtime on 7100 (issue #41, September 15, 2026)
 
 The September 15 reboot removed every `/tmp` runtime clone (7112–7117); the
-app now uses one assistant-runtime on 7100 for text, voice and body, launched
-from the checked-in `runtime/avatar-runtime.env`. Body selects Astra per request
+app now uses one assistant-runtime on 7100 for text, voice and body. Since
+September 16, 2026 (issue #53) the operator starts that runtime with plain
+startup settings and the app sends `profile: "avatar_studio"`, its model
+choices and the Live persona on every request; the launch file is gone and
+`make dev` never starts or stops the runtime. Body selects Astra per request
 through the app's proxy; requested Fast waits for per-request tier support in
 [assistant-runtime #131](https://github.com/eandualem/assistant-runtime/issues/131).
 Start with [docs/single-runtime.md](docs/single-runtime.md). Port and `/tmp`

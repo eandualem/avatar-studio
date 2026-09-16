@@ -16,7 +16,8 @@ import { conversationWindow } from "./conversation-window";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
 import { speechOpening } from "./speech-mouth";
-import { installLivePolicy } from "./live-policy";
+import { installLivePolicy, liveInstructions } from "./live-policy";
+import { APP_PROFILE } from "./runtime-config";
 
 const abortError = () =>
   new DOMException("Live connection cancelled", "AbortError");
@@ -103,6 +104,9 @@ export class VoiceClient {
       throw new Error(
         "This runtime needs independent body control support. Connect the updated voice runtime before starting a call.",
       );
+    // Runtimes with per-call instructions take the persona and profile on
+    // creation; older ones get the same text appended after connect.
+    const perCall = status.call_instructions_supported === true;
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.RTCPeerConnection)
       throw new Error(
         "This browser cannot start live audio. Use a current browser on localhost or HTTPS.",
@@ -190,6 +194,9 @@ export class VoiceClient {
       session_id: this.sessionId,
       sdp,
       mode: "conversation",
+      ...(perCall
+        ? { profile: APP_PROFILE, instructions: liveInstructions }
+        : {}),
       history: conversationWindow(this.history).map(({ role, content }) => ({
         role,
         content,
@@ -233,7 +240,7 @@ export class VoiceClient {
       10000,
     );
     this.check();
-    await installLivePolicy(channel, this.policyAbort.signal);
+    if (!perCall) await installLivePolicy(channel, this.policyAbort.signal);
     this.check();
     this.policyReady = true;
     this.facts = new LiveBodyFacts(channel, (receipt) => {

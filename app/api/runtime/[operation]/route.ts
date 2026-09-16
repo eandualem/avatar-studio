@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sameOrigin } from "@/lib/request-origin";
-import { runtimeUrl, withBodyConfig } from "@/lib/runtime-config";
+import {
+  runtimeUrl,
+  withBodyConfig,
+  withTextConfig,
+} from "@/lib/runtime-config";
 export const maxDuration = 180;
 export async function POST(
   request: NextRequest,
@@ -22,7 +26,11 @@ export async function POST(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        isBody && operation === "body-chat" ? withBodyConfig(body) : body,
+        operation === "body-chat"
+          ? withBodyConfig(body)
+          : operation === "chat"
+            ? withTextConfig(body)
+            : body,
       ),
       signal: AbortSignal.timeout(170000),
     });

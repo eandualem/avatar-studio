@@ -1,6 +1,11 @@
 import instructions from "@/profiles/live-instructions.md?raw";
 
-// App-owned policy only: never turn transcripts or host data into instructions.
+/** Charlie's spoken persona, sent with each call when the runtime accepts it. */
+export const liveInstructions = instructions;
+
+// Fallback for runtimes without per-call instructions: append the same
+// app-owned policy over the data channel. Never turn transcripts or host data
+// into instructions.
 export function installLivePolicy(
   channel: RTCDataChannel,
   signal: AbortSignal,

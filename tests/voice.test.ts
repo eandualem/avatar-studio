@@ -608,3 +608,52 @@ it("rejects old delegated-only runtimes before microphone access and allocation"
   expect(voiceRequest).toHaveBeenCalledTimes(1);
   await client.end();
 });
+
+describe("per-call persona on a shared backend", () => {
+  it("sends the profile and Live instructions on creation and skips the append when supported", async () => {
+    vi.mocked(voiceRequest).mockImplementation(async (path) =>
+      path === "status"
+        ? {
+            enabled: true,
+            configured: true,
+            conversation_mode_supported: true,
+            call_instructions_supported: true,
+          }
+        : path === "calls"
+          ? offer
+          : { finalized: true, status: "closed" },
+    );
+    const client = new VoiceClient("session", controller());
+    await client.start();
+    expect(voiceRequest).toHaveBeenCalledWith(
+      "calls",
+      "POST",
+      expect.objectContaining({
+        mode: "conversation",
+        profile: "avatar_studio",
+        instructions: expect.stringContaining("Charlie"),
+      }),
+    );
+    const appended = peers[0].channel.send.mock.calls.filter(([raw]) =>
+      raw.includes("session.instructions.append"),
+    );
+    expect(appended).toEqual([]);
+    expect(mic.enabled).toBe(true);
+    await client.end();
+  });
+
+  it("falls back to appending the policy over the data channel on older runtimes", async () => {
+    const client = new VoiceClient("session", controller());
+    await client.start();
+    expect(voiceRequest).toHaveBeenCalledWith(
+      "calls",
+      "POST",
+      expect.not.objectContaining({ profile: expect.anything() }),
+    );
+    const appended = peers[0].channel.send.mock.calls.filter(([raw]) =>
+      raw.includes("session.instructions.append"),
+    );
+    expect(appended).toHaveLength(1);
+    await client.end();
+  });
+});

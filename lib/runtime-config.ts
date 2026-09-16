@@ -3,8 +3,11 @@
  * voice and body; the optional per-role URLs remain as overrides only.
  */
 const DEFAULT_RUNTIME_URL = "http://127.0.0.1:7100";
+/** Registered name in profiles/avatar-studio.toml; sent on every request. */
+export const APP_PROFILE = "avatar_studio";
+export const DEFAULT_TEXT_MODEL = "openai:gpt-5.6-sol";
 export const DEFAULT_BODY_MODEL = "openai:gpt-6-astra";
-export const DEFAULT_BODY_THINKING_BUDGET = 4000;
+export const DEFAULT_THINKING_BUDGET = 4000;
 
 type Env = Record<string, string | undefined>;
 
@@ -12,7 +15,10 @@ function trim(url: string) {
   return url.replace(/\/$/, "");
 }
 
-export function runtimeUrl(role: "text" | "body" | "voice", env: Env = process.env) {
+export function runtimeUrl(
+  role: "text" | "body" | "voice",
+  env: Env = process.env,
+) {
   const override =
     role === "body"
       ? env.BODY_RUNTIME_URL
@@ -23,30 +29,62 @@ export function runtimeUrl(role: "text" | "body" | "voice", env: Env = process.e
 }
 
 /**
- * Body decisions select their own model on the shared instance so text keeps
- * the runtime's primary model. Values a caller already supplied win; the
- * server never overwrites an explicit request. Service tier stays a runtime
- * startup setting until assistant-runtime accepts it per request.
+ * App-owned request defaults on a shared backend: the registered profile and
+ * the model/thinking/working-memory choices the launch file used to set. Values
+ * a caller already supplied win; the server never overwrites an explicit
+ * request. Provider keys, Codex-only, built-in tools, voice enablement and
+ * ceilings remain runtime startup settings.
  */
-export type BodyConfig = { default_model: string; thinking_budget: number };
-export function withBodyConfig<T extends Record<string, unknown>>(
+export type RequestConfig = {
+  default_model: string;
+  thinking_budget: number;
+  enable_working_memory: boolean;
+};
+type Configured<T> = T & {
+  profile: string;
+  config: RequestConfig & Record<string, unknown>;
+};
+
+function budget(raw: string | undefined) {
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_THINKING_BUDGET;
+}
+
+function withConfig<T extends Record<string, unknown>>(
   body: T,
-  env: Env = process.env,
-): T & { config: BodyConfig & Record<string, unknown> } {
+  defaults: RequestConfig,
+): Configured<T> {
   const supplied =
     body.config && typeof body.config === "object"
       ? (body.config as Record<string, unknown>)
       : {};
-  const budget = Number(env.BODY_THINKING_BUDGET);
   return {
     ...body,
-    config: {
-      default_model: env.BODY_MODEL || DEFAULT_BODY_MODEL,
-      thinking_budget:
-        Number.isInteger(budget) && budget > 0
-          ? budget
-          : DEFAULT_BODY_THINKING_BUDGET,
-      ...supplied,
-    },
+    profile: typeof body.profile === "string" ? body.profile : APP_PROFILE,
+    config: { ...defaults, ...supplied },
   };
+}
+
+/** Text conversations: TEXT_MODEL / TEXT_THINKING_BUDGET, Sol by default. */
+export function withTextConfig<T extends Record<string, unknown>>(
+  body: T,
+  env: Env = process.env,
+): Configured<T> {
+  return withConfig(body, {
+    default_model: env.TEXT_MODEL || DEFAULT_TEXT_MODEL,
+    thinking_budget: budget(env.TEXT_THINKING_BUDGET),
+    enable_working_memory: false,
+  });
+}
+
+/** Body decisions: BODY_MODEL / BODY_THINKING_BUDGET, Astra by default. */
+export function withBodyConfig<T extends Record<string, unknown>>(
+  body: T,
+  env: Env = process.env,
+): Configured<T> {
+  return withConfig(body, {
+    default_model: env.BODY_MODEL || DEFAULT_BODY_MODEL,
+    thinking_budget: budget(env.BODY_THINKING_BUDGET),
+    enable_working_memory: false,
+  });
 }
