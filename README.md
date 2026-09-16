@@ -57,7 +57,7 @@ studio.
 **Terminal 1, the runtime:**
 
 ```bash
-uv tool install 'assistant-runtime[voice]'   # or: pip install 'assistant-runtime[voice]'
+uv tool install 'assistant-runtime[voice]==0.2.0'   # or: pip install 'assistant-runtime[voice]==0.2.0'
 
 export OPENAI_API_KEY=sk-...                  # the runtime also reads a .env in the directory you run it in
 export VOICE__ENABLED=true                    # GPT-Live audio; bills connected time
@@ -84,7 +84,8 @@ Open <http://127.0.0.1:7140>. Type *"Wave at me"* and Charlie waves; ask
 
 `make dev` checks the runtime first and exits with one line saying what to
 do if it is not reachable, has no `avatar_studio` profile registered, or is
-too old. It never starts or stops the runtime. The studio talks to
+older than 0.2.0 (registered profiles and per-call Live instructions). It
+never starts or stops the runtime. The studio talks to
 `http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere, and
 `.env.example` lists the other server-side settings (which model plans text
 and which plans movement). Conversations are kept in your browser; the
