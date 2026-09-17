@@ -8,7 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 import { expressionQuestions } from "../lib/expression-controller";
-import { seedGestures } from "../lib/gesture-library";
+import { libraryDigest, seedGestures } from "../lib/gesture-library";
 import { jevResponseSchema } from "../types/jev";
 
 const env = (() => {
@@ -37,6 +37,9 @@ const lines = process.argv.slice(2).length
       "what is the capital of France?",
       "hahaha that's so good",
       "do a cartwheel!",
+      "can you wave with both hands?",
+      "wave with your right hand",
+      "nod",
     ];
 const questions = expressionQuestions(seedGestures);
 const rows: Record<string, string | number>[] = [];
@@ -47,6 +50,7 @@ for (const text of lines) {
       { speaker: "user", text, transcript: "complete" },
     ],
     charlie: {
+      library: libraryDigest(seedGestures),
       speaking_now: false,
       body: "idle, standing",
       holding_still: false,
@@ -56,7 +60,10 @@ for (const text of lines) {
   const started = performance.now();
   const response = await fetch("https://api.typesafe.ai/v1/systemone", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       model: process.env.JEV_MODEL || env.JEV_MODEL || "jev-latest",
       state,
@@ -81,9 +88,13 @@ for (const text of lines) {
   rows.push({
     line: text,
     ms,
-    intent: a.intent.type === "choice" ? `${a.intent.choice} ${a.intent.confidence.toFixed(2)}` : "",
+    intent:
+      a.intent.type === "choice"
+        ? `${a.intent.choice} ${a.intent.confidence.toFixed(2)}`
+        : "",
     start: a.start.type === "noul" ? a.start.noul.toFixed(2) : "",
     stop: a.stop.type === "noul" ? a.stop.noul.toFixed(2) : "",
+    covered: a.covered.type === "noul" ? a.covered.noul.toFixed(2) : "",
     gesture: top,
     energy: a.energy.type === "score" ? a.energy.score.toFixed(1) : "",
   });

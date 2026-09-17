@@ -42,6 +42,7 @@ The state Jev reads:
     { "speaker": "user", "text": "can you clap", "transcript": "partial, still speaking" }
   ],
   "charlie": {
+    "library": ["wave: Raise the left hand beside the head and wave it; one hand only", "clap: …"],
     "speaking_now": false,
     "body": "idle, standing",
     "holding_still": false,
@@ -50,15 +51,21 @@ The state Jev reads:
 }
 ```
 
-The five questions, all in one call (`expressionQuestions`):
+The six questions, all in one call (`expressionQuestions`):
 
 | Key | Type | Asks |
 |---|---|---|
 | `intent` | choice | explicit request, incidental, or none, for the latest user line |
 | `start` | noul | start a new gesture now, given what the body is already doing |
 | `gesture` | choice | which library entry, or `not_in_library` |
+| `covered` | noul | does an entry perform exactly what was asked, hands and side included |
 | `stop` | noul | does the latest user line ask the body to stop |
 | `energy` | score | still, calm, lively, playful |
+
+`covered` is the branch that grows the library. Jev always names the
+nearest entry, so "wave with both hands" scores the one-hand wave at 0.65;
+asked separately whether the library covers the request, it answers 0.04.
+Probed values: clap 0.93, nod 0.91, cartwheel 0.03, right-hand wave 0.04.
 
 Every criterion carries examples. Without them Jev was indecisive on "stop"
 and on greetings; with them it is not. Tune the wording from
@@ -71,12 +78,19 @@ Thresholds live in `ExpressionController` and are the whole policy:
 
 - **Stop** at `stop ≥ 0.85`, from a user line only. The body holds still until
   an explicit request.
-- **Start** at `start ≥ 0.6` on a complete line, `≥ 0.8` while the line is
-  still being spoken.
-- **Explicit** when `intent` is `explicit` with confidence `≥ 0.6`. Explicit
-  actions clear stillness, replace anything, and are reported to Live as
-  facts. Incidental ones never interrupt an explicit action, never run while
-  holding still, and are not repeated within 6 s.
+- **Start** at `start ≥ 0.6` on a complete line. While the line is still
+  being spoken an explicit request starts at `≥ 0.7` and an incidental
+  gesture at `≥ 0.8`; in a real call explicit lines scored 0.75 to 0.92
+  while partial and non-requests stayed under 0.5.
+- **Explicit** when `intent` is `explicit` with confidence `≥ 0.6`. The
+  intent is about the latest user line even once Charlie has started
+  replying, so a request that was just under the bar while spoken is still
+  served, as explicit, when his reply arrives. Explicit actions clear
+  stillness, replace anything, and are reported to Live as facts. Incidental
+  ones never interrupt an explicit action, never run while holding still,
+  and are not repeated within 6 s.
+- **Not covered** (`covered < 0.5`) with an explicit intent asks the planner,
+  even when `gesture` names a nearest entry.
 - **Once per line.** A gesture performed for the current user line is not
   performed again for it; the state tells Jev so, and code enforces it.
 - **Not in library** with an explicit intent asks the planner once per line.

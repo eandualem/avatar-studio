@@ -16,6 +16,7 @@ type Verdict = Partial<{
   intent: "explicit" | "incidental" | "none";
   start: number;
   gesture: string;
+  covered: number;
   stop: number;
   energy: number;
 }>;
@@ -35,6 +36,7 @@ function answers(v: Verdict): JevAnswers {
       confidence: 0.9,
       probabilities: { [v.gesture ?? "rest"]: 0.9 },
     },
+    covered: { type: "noul", noul: v.covered ?? 0.9 },
     stop: { type: "noul", noul: v.stop ?? 0 },
     energy: {
       type: "score",
@@ -83,7 +85,8 @@ function setup(options = {}) {
     receipt: vi.fn(async () => {}),
     cancel: vi.fn(async () => {}),
   };
-  const fact = vi.fn<(action: BodyAction) => void>(), warning = vi.fn();
+  const fact = vi.fn<(action: BodyAction) => void>(),
+    warning = vi.fn();
   const body = new ExpressionController(
     motion,
     oracle,
@@ -124,13 +127,27 @@ describe("continuous expression from the transcript", () => {
       "intent",
       "start",
       "gesture",
+      "covered",
       "stop",
       "energy",
     ]);
-    expect(questions.gesture.type === "choice" && Object.keys(questions.gesture.criteria)).toContain("not_in_library");
+    expect(
+      questions.gesture.type === "choice" &&
+        Object.keys(questions.gesture.criteria),
+    ).toContain("not_in_library");
     expect(state).toMatchObject({
-      conversation: [{ speaker: "user", text: "can you", transcript: "partial, still speaking" }],
-      charlie: { body: "idle, standing", performed_for_latest_user_line: [] },
+      conversation: [
+        {
+          speaker: "user",
+          text: "can you",
+          transcript: "partial, still speaking",
+        },
+      ],
+      charlie: {
+        body: "idle, standing",
+        performed_for_latest_user_line: [],
+        library: expect.arrayContaining([expect.stringMatching(/^clap: /)]),
+      },
     });
     expect(motion.execute).toHaveBeenCalledOnce();
     const [executed] = vi.mocked(motion.execute).mock.calls[0];
@@ -145,8 +162,72 @@ describe("continuous expression from the transcript", () => {
     });
     expect(motion.execute).toHaveBeenCalledOnce();
     const action = body.snapshot().actions[0];
-    expect(action).toMatchObject({ label: "clap", intent: "explicit", status: "completed" });
-    expect(body.snapshot().pulse).toMatchObject({ calls: 3, verdict: expect.stringContaining("clap") });
+    expect(action).toMatchObject({
+      label: "clap",
+      intent: "explicit",
+      status: "completed",
+    });
+    expect(body.snapshot().pulse).toMatchObject({
+      calls: 3,
+      verdict: expect.stringContaining("clap"),
+      outcome: "clap already performed for this line",
+    });
+    expect(body.snapshot().pulses?.[0].outcome).toBe(
+      "explicit clap, energy 2.0",
+    );
+  });
+  it("keeps an explicit request explicit across Charlie's reply, at the lower partial bar", async () => {
+    const { body, motion, oracle } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.65, gesture: "wave" }),
+    );
+    body.observe([line("user", "can you wave")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).not.toHaveBeenCalled();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.72, gesture: "wave" }),
+    );
+    body.observe(
+      [line("user", "can you wave"), line("assistant", "Sure, I'm")],
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().actions[0]).toMatchObject({
+      label: "wave",
+      intent: "explicit",
+    });
+    expect(body.snapshot().pulse?.outcome).toBe("explicit wave, energy 1.5");
+  });
+  it("sends an explicit request the library does not cover to the planner, even when Jev names the nearest entry", async () => {
+    const { body, motion, oracle, planner } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "explicit",
+        start: 0.9,
+        gesture: "wave",
+        covered: 0.04,
+      }),
+    );
+    body.observe([line("user", "wave with both hands")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(planner.decide).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toBe("planner asked (covered 0.04)");
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(vi.mocked(motion.execute).mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        waypoints: (plan.arguments as { waypoints: unknown }).waypoints,
+      }),
+    );
+    // The settled line offers the learned entry; it was just performed, so no repeat.
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.9, gesture: "touch_toes" }),
+    );
+    await vi.advanceTimersByTimeAsync(900);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toBe(
+      "touch_toes already performed for this line",
+    );
   });
   it("waits for a partial line to settle before a moderately confident start, and never repeats the same state", async () => {
     const { body, motion, oracle } = setup();
@@ -183,15 +264,28 @@ describe("continuous expression from the transcript", () => {
     vi.mocked(oracle.ask).mockResolvedValue(
       answers({ intent: "none", start: 0.9, gesture: "laugh" }),
     );
-    body.observe([line("user", "run!"), line("assistant", "Here I go, ha!")], true);
+    body.observe(
+      [line("user", "run!"), line("assistant", "Here I go, ha!")],
+      true,
+    );
     await vi.advanceTimersByTimeAsync(10);
     expect(motion.execute).toHaveBeenCalledOnce();
     expect(vi.mocked(oracle.ask).mock.lastCall![0]).toMatchObject({
-      charlie: { speaking_now: true, body: expect.stringContaining("run_in_place (explicit)") },
+      charlie: {
+        speaking_now: true,
+        body: expect.stringContaining("run_in_place (explicit)"),
+      },
     });
     body.stop();
     expect(body.snapshot().still).toBe(true);
-    body.observe([line("user", "run!"), line("assistant", "Here I go, ha!"), line("user", "haha", "u2")], false);
+    body.observe(
+      [
+        line("user", "run!"),
+        line("assistant", "Here I go, ha!"),
+        line("user", "haha", "u2"),
+      ],
+      false,
+    );
     await vi.advanceTimersByTimeAsync(10);
     expect(motion.execute).toHaveBeenCalledOnce();
     vi.mocked(oracle.ask).mockResolvedValue(
@@ -227,15 +321,28 @@ describe("continuous expression from the transcript", () => {
     );
     body.observe([line("user", "clap")], false);
     await vi.advanceTimersByTimeAsync(10);
-    vi.mocked(oracle.ask).mockResolvedValue(answers({ stop: 0.97, gesture: "clap" }));
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ stop: 0.97, gesture: "clap" }),
+    );
     body.observe([line("user", "clap"), line("assistant", "stop? no")], true);
     await vi.advanceTimersByTimeAsync(10);
     expect(body.snapshot().active?.label).toBe("clap");
-    body.observe([line("user", "clap"), line("assistant", "stop? no"), line("user", "okay stop", "u2")], false);
+    body.observe(
+      [
+        line("user", "clap"),
+        line("assistant", "stop? no"),
+        line("user", "okay stop", "u2"),
+      ],
+      false,
+    );
     await vi.advanceTimersByTimeAsync(10);
     expect(body.snapshot().active).toBeUndefined();
     expect(body.snapshot().still).toBe(true);
-    expect(fact.mock.calls.map(([a]) => a.status)).toEqual(["started", "canceled", "held"]);
+    expect(fact.mock.calls.map(([a]) => a.status)).toEqual([
+      "started",
+      "canceled",
+      "held",
+    ]);
     expect(motion.stop).toHaveBeenCalled();
   });
   it("asks the planner when Jev finds nothing in the library, executes the plan and learns it", async () => {
@@ -257,17 +364,22 @@ describe("continuous expression from the transcript", () => {
       status: "completed",
       detail: "Learned as touch_toes",
     });
-    expect(JSON.parse(store.get("avatar-studio.gesture-library")!)).toMatchObject([
-      { name: "touch_toes", examples: ["touch your toes"] },
-    ]);
+    expect(
+      JSON.parse(store.get("avatar-studio.gesture-library")!),
+    ).toMatchObject([{ name: "touch_toes", examples: ["touch your toes"] }]);
     // The learned gesture is offered to Jev from now on and runs from the library.
     vi.mocked(oracle.ask).mockResolvedValue(
       answers({ intent: "explicit", start: 0.9, gesture: "touch_toes" }),
     );
-    body.observe([line("user", "touch your toes"), line("user", "again", "u2")], false);
+    body.observe(
+      [line("user", "touch your toes"), line("user", "again", "u2")],
+      false,
+    );
     await vi.advanceTimersByTimeAsync(10);
     const [, questions] = vi.mocked(oracle.ask).mock.lastCall!;
-    expect(questions.gesture.type === "choice" && questions.gesture.criteria).toHaveProperty("touch_toes");
+    expect(
+      questions.gesture.type === "choice" && questions.gesture.criteria,
+    ).toHaveProperty("touch_toes");
     expect(planner.decide).toHaveBeenCalledOnce();
     expect(motion.execute).toHaveBeenCalledTimes(2);
     expect(body.snapshot().actions[1].label).toBe("touch_toes");
@@ -286,12 +398,18 @@ describe("continuous expression from the transcript", () => {
     );
     let finish!: (value: Pending) => void;
     vi.mocked(planner.decide).mockImplementationOnce(
-      () => new Promise((resolve) => { finish = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
     );
     body.observe([line("user", "do a cartwheel")], false);
     await vi.advanceTimersByTimeAsync(10);
     vi.mocked(oracle.ask).mockResolvedValue(answers({}));
-    body.observe([line("user", "do a cartwheel"), line("user", "never mind", "u2")], false);
+    body.observe(
+      [line("user", "do a cartwheel"), line("user", "never mind", "u2")],
+      false,
+    );
     await vi.advanceTimersByTimeAsync(10);
     finish(plan);
     await vi.advanceTimersByTimeAsync(10);
@@ -308,13 +426,18 @@ describe("continuous expression from the transcript", () => {
     const { body, motion, oracle, warning } = setup();
     let release!: (a: JevAnswers) => void;
     vi.mocked(oracle.ask).mockImplementationOnce(
-      () => new Promise((resolve) => { release = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
     );
     body.observe([line("user", "hi")], false);
     body.observe([line("user", "hi there", "hi")], false);
     body.observe([line("user", "hi there Charlie", "hi")], false);
     expect(oracle.ask).toHaveBeenCalledOnce();
-    vi.mocked(oracle.ask).mockRejectedValueOnce(new Error("Jev is unavailable."));
+    vi.mocked(oracle.ask).mockRejectedValueOnce(
+      new Error("Jev is unavailable."),
+    );
     release(answers({}));
     await vi.advanceTimersByTimeAsync(300);
     expect(oracle.ask).toHaveBeenCalledTimes(2);
@@ -330,7 +453,10 @@ describe("continuous expression from the transcript", () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(motion.execute).not.toHaveBeenCalled();
     body.close();
-    body.observe([line("user", "wave please", "old"), line("user", "wave", "new")], false);
+    body.observe(
+      [line("user", "wave please", "old"), line("user", "wave", "new")],
+      false,
+    );
     await vi.advanceTimersByTimeAsync(1000);
     expect(motion.execute).not.toHaveBeenCalled();
   });
@@ -349,6 +475,23 @@ it("groups fragments into lines per speaker and keeps a growing user line's iden
     { id: "line:c:2", role: "assistant", text: "Sure" },
     { id: "line:c:3", role: "user", text: "thanks   " },
   ]);
-  expect(expressionLines("c", Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", delta: `l${i}`, start_ms: i * 3000, end_ms: i * 3000 + 100 })) as never)).toHaveLength(8);
-  expect(Object.keys(expressionQuestions(seedGestures).gesture.type === "choice" ? (expressionQuestions(seedGestures).gesture as { criteria: object }).criteria : {})).toHaveLength(seedGestures.length + 1);
+  expect(
+    expressionLines(
+      "c",
+      Array.from({ length: 12 }, (_, i) => ({
+        role: i % 2 ? "assistant" : "user",
+        delta: `l${i}`,
+        start_ms: i * 3000,
+        end_ms: i * 3000 + 100,
+      })) as never,
+    ),
+  ).toHaveLength(8);
+  expect(
+    Object.keys(
+      expressionQuestions(seedGestures).gesture.type === "choice"
+        ? (expressionQuestions(seedGestures).gesture as { criteria: object })
+            .criteria
+        : {},
+    ),
+  ).toHaveLength(seedGestures.length + 1);
 });

@@ -30,6 +30,7 @@ const jevVerdict = (): JevAnswers => ({
   intent: { type: "choice", choice: "none", confidence: 0.9, probabilities: { none: 0.9 } },
   start: { type: "noul", noul: 0.05 },
   gesture: { type: "choice", choice: "rest", confidence: 0.5, probabilities: { rest: 0.5 } },
+  covered: { type: "noul", noul: 0.9 },
   stop: { type: "noul", noul: 0.02 },
   energy: { type: "score", score: 1, confidence: 0.6, probabilities: { "1": 1 } },
 });

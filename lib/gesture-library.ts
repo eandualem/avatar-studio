@@ -15,6 +15,8 @@ export type Gesture = {
   what: string;
   /** Lines that should pick it, for Jev's criteria. */
   examples: string[];
+  /** Requests this entry does not satisfy, for Jev's criteria. */
+  not_for?: string;
   motion: Motion;
   /** Cycles scale with energy. */
   cyclic?: boolean;
@@ -38,15 +40,22 @@ const lowerHands = {
 export const seedGestures: Gesture[] = [
   {
     name: "wave",
-    what: "Raise the left hand beside the head and wave it side to side",
+    what: "Raise the left hand beside the head and wave it side to side; one hand only",
     examples: ["hey Charlie!", "wave at me", "bye for now", "hello there"],
+    not_for:
+      "waving with both hands, with the right hand, or any other variant",
     cyclic: true,
     motion: {
       interpolation: "swing",
       prepare: [
         {
           time: 0.6,
-          left: { position: [0.29, 0.83, 0.09], direction: up, ...open, roll: 0 },
+          left: {
+            position: [0.29, 0.83, 0.09],
+            direction: up,
+            ...open,
+            roll: 0,
+          },
         },
       ],
       waypoints: [
@@ -60,7 +69,11 @@ export const seedGestures: Gesture[] = [
   {
     name: "clap",
     what: "Bring both hands together in front of the chest repeatedly",
-    examples: ["can you clap?", "clap for me", "give yourself a round of applause"],
+    examples: [
+      "can you clap?",
+      "clap for me",
+      "give yourself a round of applause",
+    ],
     cyclic: true,
     motion: {
       mode: "animated",
@@ -128,8 +141,16 @@ export const seedGestures: Gesture[] = [
           time: 0.5,
           shoulders: { left: 0.22, right: 0.22 },
           head: { yaw: 0, nod: 0, tilt: 0.15 },
-          left: { position: [0.3, 0.5, 0.1], direction: [0.4, -1, 0.3], ...open },
-          right: { position: [-0.3, 0.5, 0.1], direction: [-0.4, -1, 0.3], ...open },
+          left: {
+            position: [0.3, 0.5, 0.1],
+            direction: [0.4, -1, 0.3],
+            ...open,
+          },
+          right: {
+            position: [-0.3, 0.5, 0.1],
+            direction: [-0.4, -1, 0.3],
+            ...open,
+          },
         },
         { time: 1.4, ...lowerHands },
       ],
@@ -138,7 +159,11 @@ export const seedGestures: Gesture[] = [
   {
     name: "thinking",
     what: "Right hand to the chin, head tilted, looking slightly up; a held pose",
-    examples: ["hmm let me think", "what's the capital of Mongolia?", "that's a hard one"],
+    examples: [
+      "hmm let me think",
+      "what's the capital of Mongolia?",
+      "that's a hard one",
+    ],
     motion: {
       waypoints: [
         {
@@ -216,8 +241,14 @@ export const seedGestures: Gesture[] = [
           torso: { bend: 0.12, twist: 0, lean: 0 },
           leftFoot: { position: [0.105, 0.25, 0.15], pitch: 0, yaw: 0 },
           rightFoot: { position: [-0.105, 0.095, -0.06], pitch: 0, yaw: 0 },
-          left: { position: [0.2, 0.59, 0.02], curls: [0.7, 0.7, 0.7, 0.7, 0.7] },
-          right: { position: [-0.2, 0.65, 0.23], curls: [0.7, 0.7, 0.7, 0.7, 0.7] },
+          left: {
+            position: [0.2, 0.59, 0.02],
+            curls: [0.7, 0.7, 0.7, 0.7, 0.7],
+          },
+          right: {
+            position: [-0.2, 0.65, 0.23],
+            curls: [0.7, 0.7, 0.7, 0.7, 0.7],
+          },
         },
       ],
       waypoints: [
@@ -293,7 +324,11 @@ export const seedGestures: Gesture[] = [
   {
     name: "laugh",
     what: "Head back and shoulders bouncing, laughing",
-    examples: ["hahaha that's so good", "why did the robot cross the road?", "you're funny"],
+    examples: [
+      "hahaha that's so good",
+      "why did the robot cross the road?",
+      "you're funny",
+    ],
     cyclic: true,
     motion: {
       interpolation: "swing",
@@ -310,7 +345,12 @@ export const seedGestures: Gesture[] = [
       ],
       repeat: 3,
       finish: [
-        { time: 0.5, head: rest.head, torso: rest.torso, shoulders: rest.shoulders },
+        {
+          time: 0.5,
+          head: rest.head,
+          torso: rest.torso,
+          shoulders: rest.shoulders,
+        },
       ],
     },
   },
@@ -327,7 +367,14 @@ export const NOT_IN_LIBRARY = "not_in_library";
 
 export function libraryCriteria(gestures: Gesture[]) {
   return Object.fromEntries([
-    ...gestures.map((g) => [g.name, { what: g.what, examples: g.examples }]),
+    ...gestures.map((g) => [
+      g.name,
+      {
+        what: g.what,
+        examples: g.examples,
+        ...(g.not_for ? { not_for: g.not_for } : {}),
+      },
+    ]),
     [
       NOT_IN_LIBRARY,
       {
@@ -338,7 +385,12 @@ export function libraryCriteria(gestures: Gesture[]) {
   ]);
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+/** The library as Jev reads it in state, one line per entry. */
+export const libraryDigest = (gestures: Gesture[]) =>
+  gestures.map((g) => `${g.name}: ${g.what}`);
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
 const scaleTimes = (points: Motion["waypoints"] | undefined, factor: number) =>
   points?.map((p) => ({ ...p, time: Math.max(0.2, p.time * factor) }));
 

@@ -16,6 +16,7 @@ import {
   gestureName,
   learnGesture,
   libraryCriteria,
+  libraryDigest,
   shapeGesture,
   type Gesture,
 } from "./gesture-library";
@@ -24,11 +25,15 @@ import { choice, noul, score, type Oracle } from "./jev";
 export type Thresholds = {
   /** Start a gesture from a line that has settled. */
   start: number;
-  /** Start a gesture while the line is still being spoken. */
+  /** Start an incidental gesture while the line is still being spoken. */
   startPartial: number;
+  /** Start an explicit request while the line is still being spoken. */
+  startExplicitPartial: number;
   stop: number;
   /** Confidence that a user line is an explicit movement request. */
   explicit: number;
+  /** Below this, the library does not cover an explicit request: ask the planner. */
+  covered: number;
 };
 export type ExpressionOptions = {
   initialStill?: boolean;
@@ -48,7 +53,14 @@ const defaults: Required<Omit<ExpressionOptions, "library" | "thresholds">> & {
   settleMs: 800,
   minIntervalMs: 250,
   cooldownMs: 6000,
-  thresholds: { start: 0.6, startPartial: 0.8, stop: 0.85, explicit: 0.6 },
+  thresholds: {
+    start: 0.6,
+    startPartial: 0.8,
+    startExplicitPartial: 0.7,
+    stop: 0.85,
+    explicit: 0.6,
+    covered: 0.5,
+  },
 };
 
 /** The questions Jev answers on every transcript change, in one call. */
@@ -111,6 +123,27 @@ export function expressionQuestions(
     gesture: choice(
       "If Charlie starts a new gesture or posture now, which one?",
       libraryCriteria(library),
+    ),
+    covered: noul(
+      "Does an entry in charlie.library perform EXACTLY what the latest USER line asks for, including which hand or hands, which side, and the manner?",
+      {
+        true: {
+          what: "The request is a plain instance of one entry's description, or is not a movement request at all",
+          examples: [
+            "'can you wave' with an entry 'wave: raise the left hand and wave it'",
+            "'clap for me' with an entry 'clap: bring both hands together repeatedly'",
+            "'what time is it', which asks for no movement",
+          ],
+        },
+        false: {
+          what: "The request adds or changes something no entry describes: the other hand, both hands, a direction, a different action",
+          examples: [
+            "'wave with both hands' when the only wave entry uses one hand",
+            "'wave with your right hand' when the wave entry uses the left",
+            "'do a cartwheel' with no cartwheel entry",
+          ],
+        },
+      },
     ),
     stop: noul(
       "Does the latest USER line tell Charlie to stop moving, hold still, or quit what his body is doing?",
@@ -297,6 +330,7 @@ export class ExpressionController {
           : {}),
       })),
       charlie: {
+        library: libraryDigest(library),
         speaking_now: speaking,
         body: this.moving
           ? `${this.moving.action.label} (${this.moving.action.intent}), started ${((performance.now() - (this.moving.action.startedAt ?? performance.now())) / 1000).toFixed(1)}s ago`
@@ -371,18 +405,29 @@ export class ExpressionController {
       this.stop("User asked to stop");
       return "stop";
     }
-    const threshold = complete ? t.start : t.startPartial;
+    // The intent answer is about the latest user line even while Charlie is
+    // replying to it, so an explicit request survives his reply; the user's
+    // line is finished once he has started answering.
+    const explicit = isExplicit(a.intent, t.explicit);
+    const userDone = complete || !fromUser;
+    const threshold = explicit
+      ? userDone
+        ? t.start
+        : t.startExplicitPartial
+      : complete
+        ? t.start
+        : t.startPartial;
     if (start < threshold)
       return `no start (${start.toFixed(2)} < ${threshold}${complete ? "" : " partial"})`;
-    const explicit = fromUser && isExplicit(a.intent, t.explicit);
     const name = a.gesture?.type === "choice" ? a.gesture.choice : "";
-    if (name === NOT_IN_LIBRARY) {
+    const covered = a.covered?.type === "noul" ? a.covered.noul : 1;
+    if (name === NOT_IN_LIBRARY || (explicit && covered < t.covered)) {
       if (!explicit) return "not in library, not explicit";
       if (this.performed.has("planner"))
         return "planner already asked for this line";
       this.performed.add("planner");
       void this.plan(lines, timing);
-      return "planner asked";
+      return `planner asked (covered ${covered.toFixed(2)})`;
     }
     const entry = library.find((g) => g.name === name);
     if (!entry) return `unknown gesture ${name}`;
@@ -402,6 +447,7 @@ export class ExpressionController {
         return `${name} skipped: cooldown`;
     }
     this.performed.add(name);
+    const replaced = this.moving?.action.label;
     const action = this.action(
       name,
       explicit ? "explicit" : "incidental",
@@ -411,7 +457,7 @@ export class ExpressionController {
     );
     action.toolReturnedAt = performance.now();
     void this.execute(action, shapeGesture(entry, energy));
-    return `${explicit ? "explicit" : "incidental"} ${name}, energy ${energy.toFixed(1)}${this.moving ? " (replaces " + this.moving.action.label + ")" : ""}`;
+    return `${explicit ? "explicit" : "incidental"} ${name}, energy ${energy.toFixed(1)}${replaced ? ` (replaces ${replaced})` : ""}`;
   }
   private action(
     label: string,
@@ -554,6 +600,7 @@ export class ExpressionController {
         const result = await this.execute(action, decision.motion);
         if (result?.status === "completed" && user) {
           const name = gestureName(decision.label);
+          this.performed.add(name);
           if (
             learnGesture({
               name,
