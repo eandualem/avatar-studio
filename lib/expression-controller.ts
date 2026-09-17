@@ -281,11 +281,14 @@ export class ExpressionController {
   observe(lines: ExpressionLine[], speaking: boolean) {
     if (this.closed) return;
     this.lastFragmentAt = performance.now();
+    // A new user line starts a fresh once-per-line account. A plan already
+    // composing survives it: a correction or a repeat of the same request
+    // waits for that plan; only a stop, a snapshot or an explicit request the
+    // library can serve cancels it (see act).
     const user = lines.findLast((l) => l.role === "user");
     if (user && user.id !== this.lineId) {
       this.lineId = user.id;
       this.performed = new Set();
-      this.invalidatePlan();
     }
     this.latest = { lines, speaking };
     clearTimeout(this.settle);
@@ -423,6 +426,7 @@ export class ExpressionController {
     const covered = a.covered?.type === "noul" ? a.covered.noul : 1;
     if (name === NOT_IN_LIBRARY || (explicit && covered < t.covered)) {
       if (!explicit) return "not in library, not explicit";
+      if (this.planning) return "planner still composing";
       if (this.performed.has("planner"))
         return "planner already asked for this line";
       this.performed.add("planner");
@@ -447,6 +451,8 @@ export class ExpressionController {
         return `${name} skipped: cooldown`;
     }
     this.performed.add(name);
+    if (explicit && this.planning)
+      this.invalidatePlan("Superseded by a request the library serves");
     const replaced = this.moving?.action.label;
     const action = this.action(
       name,
@@ -536,6 +542,7 @@ export class ExpressionController {
     lines: ExpressionLine[],
     timing: { sentAt: number; utteranceAt: number },
   ) {
+    if (this.planning) return;
     const user = lines.findLast((l) => l.role === "user");
     const revision = ++this.revision;
     const action = this.action(
@@ -647,13 +654,13 @@ export class ExpressionController {
           .catch(() => {});
     }
   }
-  private invalidatePlan() {
+  private invalidatePlan(detail = "Superseded before admission") {
     this.revision++;
     const planning = this.planning;
     this.planning = undefined;
     if (!planning) return;
     planning.work.abort.abort();
-    this.state(planning.work.action, "canceled", "Superseded before admission");
+    this.state(planning.work.action, "canceled", detail);
     void this.planner
       .cancel(planning.request.session_id, planning.request.id)
       .catch(() => {});

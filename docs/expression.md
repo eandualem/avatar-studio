@@ -91,6 +91,11 @@ Thresholds live in `ExpressionController` and are the whole policy:
   and are not repeated within 6 s.
 - **Not covered** (`covered < 0.5`) with an explicit intent asks the planner,
   even when `gesture` names a nearest entry.
+- **A plan composing survives new lines.** A correction ("no, I said both
+  hands") or a repeat waits for the plan already in flight instead of
+  restarting it; in a real call restarting cost three planner runs for one
+  request. Only a stop, a snapshot, or an explicit request the library can
+  serve cancels a plan.
 - **Once per line.** A gesture performed for the current user line is not
   performed again for it; the state tells Jev so, and code enforces it.
 - **Not in library** with an explicit intent asks the planner once per line.

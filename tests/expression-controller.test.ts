@@ -391,13 +391,18 @@ describe("continuous expression from the transcript", () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(planner.decide).toHaveBeenCalledOnce();
   });
-  it("a new user line supersedes a plan in flight, and a late plan never moves the body", async () => {
+  it("keeps a plan composing across corrections and repeats, and cancels it for a stop or a request the library serves", async () => {
     const { body, motion, oracle, planner } = setup();
     vi.mocked(oracle.ask).mockResolvedValue(
-      answers({ intent: "explicit", start: 0.9, gesture: "not_in_library" }),
+      answers({
+        intent: "explicit",
+        start: 0.9,
+        gesture: "not_in_library",
+        covered: 0.05,
+      }),
     );
     let finish!: (value: Pending) => void;
-    vi.mocked(planner.decide).mockImplementationOnce(
+    vi.mocked(planner.decide).mockImplementation(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -405,22 +410,77 @@ describe("continuous expression from the transcript", () => {
     );
     body.observe([line("user", "do a cartwheel")], false);
     await vi.advanceTimersByTimeAsync(10);
-    vi.mocked(oracle.ask).mockResolvedValue(answers({}));
+    expect(planner.decide).toHaveBeenCalledOnce();
+    // A correction on a new line waits for the plan instead of restarting it.
     body.observe(
-      [line("user", "do a cartwheel"), line("user", "never mind", "u2")],
+      [
+        line("user", "do a cartwheel"),
+        line("assistant", "On it"),
+        line("user", "yes, a cartwheel, I said", "u2"),
+      ],
       false,
     );
     await vi.advanceTimersByTimeAsync(10);
+    expect(planner.decide).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toBe("planner still composing");
+    expect(planner.cancel).not.toHaveBeenCalled();
     finish(plan);
     await vi.advanceTimersByTimeAsync(10);
-    expect(motion.execute).not.toHaveBeenCalled();
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().actions[0]).toMatchObject({
+      label: "Touch toes",
+      status: "completed",
+    });
+    // A new uncovered request plans again; an explicit library request cancels that plan.
+    body.observe([line("user", "now a handstand", "u3")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(planner.decide).toHaveBeenCalledTimes(2);
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.9, gesture: "clap" }),
+    );
+    body.observe(
+      [
+        line("user", "now a handstand", "u3"),
+        line("user", "actually just clap", "u4"),
+      ],
+      false,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(motion.execute).mock.calls[1][0].repeat).toBe(3);
     expect(planner.cancel).toHaveBeenCalledOnce();
-    expect(planner.receipt).toHaveBeenCalledWith(
+    finish(plan);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(planner.receipt).toHaveBeenLastCalledWith(
       expect.anything(),
       plan,
       expect.objectContaining({ outcome: "failed" }),
     );
-    expect(body.snapshot().actions[0].status).toBe("canceled");
+    expect(body.snapshot().actions[1]).toMatchObject({
+      status: "canceled",
+      detail: "Superseded by a request the library serves",
+    });
+    // A stop cancels a plan too.
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "explicit",
+        start: 0.9,
+        gesture: "not_in_library",
+        covered: 0.05,
+      }),
+    );
+    body.observe([line("user", "do a cartwheel", "u5")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(planner.decide).toHaveBeenCalledTimes(3);
+    vi.mocked(oracle.ask).mockResolvedValue(answers({ stop: 0.95 }));
+    body.observe(
+      [line("user", "do a cartwheel", "u5"), line("user", "stop", "u6")],
+      false,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(planner.cancel).toHaveBeenCalledTimes(2);
+    expect(body.snapshot().still).toBe(true);
   });
   it("survives Jev failures, coalesces bursts to one in-flight call, and reconciles snapshots without replay", async () => {
     const { body, motion, oracle, warning } = setup();
