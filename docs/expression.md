@@ -44,14 +44,19 @@ The state Jev reads:
   "charlie": {
     "library": ["wave: Raise the left hand beside the head and wave it; one hand only", "clap: …"],
     "speaking_now": false,
-    "body": "idle, standing",
+    "silence_seconds": 0,
+    "body": "holding the pose left by kick_stance; not at rest",
     "holding_still": false,
     "performed_for_latest_user_line": []
   }
 }
 ```
 
-The six questions, all in one call (`expressionQuestions`):
+`body` remembers the pose a completed action left until something returns
+to rest. Without it Jev saw "standing" after a held kick and found no reason
+to answer "go back to your natural position".
+
+The eight questions, all in one call (`expressionQuestions`):
 
 | Key | Type | Asks |
 |---|---|---|
@@ -61,6 +66,8 @@ The six questions, all in one call (`expressionQuestions`):
 | `covered` | noul | does an entry perform exactly what was asked, hands and side included |
 | `stop` | noul | does the latest user line ask the body to stop |
 | `energy` | score | still, calm, lively, playful |
+| `sustain` | score | brief, normal, or extended; scales the cycles of rhythmic entries |
+| `body_language` | choice | which small body language fits right now, or none |
 
 `covered` is the branch that grows the library. Jev always names the
 nearest entry, so "wave with both hands" scores the one-hand wave at 0.65;
@@ -78,17 +85,28 @@ Thresholds live in `ExpressionController` and are the whole policy:
 
 - **Stop** at `stop ≥ 0.85`, from a user line only. The body holds still until
   an explicit request.
-- **Start** at `start ≥ 0.6` on a complete line. While the line is still
-  being spoken an explicit request starts at `≥ 0.7` and an incidental
-  gesture at `≥ 0.8`; in a real call explicit lines scored 0.75 to 0.92
-  while partial and non-requests stayed under 0.5.
-- **Explicit** when `intent` is `explicit` with confidence `≥ 0.6`. The
-  intent is about the latest user line even once Charlie has started
-  replying, so a request that was just under the bar while spoken is still
-  served, as explicit, when his reply arrives. Explicit actions clear
-  stillness, replace anything, and are reported to Live as facts. Incidental
-  ones never interrupt an explicit action, never run while holding still,
-  and are not repeated within 6 s.
+- **Explicit** when `intent` is `explicit` with confidence `≥ 0.6`. A
+  request is then gated on the gesture's own confidence, `≥ 0.7` while the
+  line is still being spoken and `≥ 0.5` once it is done, not on `start`:
+  "go back to normal" is a request even when nothing new seems to start.
+  The intent is about the latest user line even once Charlie has started
+  replying, so a request still being spoken is served when his reply
+  arrives. Explicit actions clear stillness, replace anything, and are
+  reported to Live as facts.
+- **Incidental** gestures from the main channel start at `start ≥ 0.6` on a
+  complete line and `≥ 0.8` while it is spoken. They never interrupt an
+  explicit action, never run while holding still, and are not repeated
+  within 6 s.
+- **Body language**, the quiet channel: when the main channel started
+  nothing and nothing is moving, the most likely body language runs unless
+  "none" is a clear majority (`≥ 0.6`) or the best option is under `0.2`; at
+  most one every 2.5 s and the same one at most every 8 s. It is what makes
+  Charlie nod while you talk, glance away while he thinks, and open his
+  hands while he explains. The question tells Jev he is "never a statue";
+  worded neutrally, "none" absorbed half the mass on every line.
+- **Silence** re-asks every 5 s for up to two minutes, with
+  `silence_seconds` in the state, so Charlie can shift his weight or glance
+  around while nobody speaks.
 - **Not covered** (`covered < 0.5`) with an explicit intent asks the planner,
   even when `gesture` names a nearest entry.
 - **A plan composing survives new lines.** A correction ("no, I said both
@@ -107,19 +125,26 @@ quicker and longer than a polite one.
 
 ## The library
 
-`seedGestures` is fifteen entries: wave, clap, nod, shake_head, shrug,
-thinking, lean_in, celebrate, run_in_place, look_left, look_right,
-point_forward, bow, laugh and rest. Each has a `what` and `examples` that
+`seedGestures` is twenty-one entries: wave, wave_both_hands, clap, nod,
+shake_head, shrug, thinking, lean_in, celebrate, run_in_place, look_left,
+look_right, point_forward, bow, laugh, kick_stance, crouch, raise_hand,
+open_arms, dance and rest. `microGestures` is the body-language set:
+nod_small, head_tilt, glance_away, lean_in_small, lean_back, open_hands,
+hand_beat, shrug_small and sway. Each has a `what` and `examples` that
 become Jev's criteria, and a `motion` that is a valid `move_avatar` plan.
 `tests/gesture-library.test.ts` runs every entry on the shipped skeleton and
 fails on any collision, floor penetration or blocked target. The Dev panel
 lists them as "Library · name" for tuning by eye.
 
 Learned entries are added by the planner path: when Jev says
-`not_in_library` and the intent is explicit, the planner receives the usual
-body request, its `move_avatar` plan runs, and a completed run is stored
-under a name derived from the plan's label, with the user's line as its
-example. Learned entries live in this browser's local storage
+`not_in_library` or `covered` is low and the intent is explicit, the planner
+receives the usual body request, its `move_avatar` plan runs, and a
+completed run is stored under a name derived from the plan's label, with
+the user's line as its example. A plan that ends away from rest and whose
+label does not name a pose, stance or position gets a finish back to rest
+first, so a learned wave comes home like an authored one. **Forget learned
+movements** in the Dev panel clears them, for when a seed entry should take
+over. Learned entries live in this browser's local storage
 (`avatar-studio.gesture-library`, last 40) and are offered to Jev from the
 next call on. Nothing is stored server-side.
 

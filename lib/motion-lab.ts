@@ -7,7 +7,7 @@ import {
 import type { Pending, ToolReceipt } from "@/types/conversation";
 import { executeTool } from "./host-tools";
 import { planMotion, restPose, requestedSeconds } from "./motion";
-import { seedGestures } from "./gesture-library";
+import { microGestures, seedGestures } from "./gesture-library";
 
 // Editable examples of the public tool contract, never agent-side gesture names.
 export const motionExamples: { name: string; hint: string; motion: Motion }[] =
@@ -201,6 +201,11 @@ export const motionExamples: { name: string; hint: string; motion: Motion }[] =
     ...seedGestures.map((gesture) => ({
       name: `Library · ${gesture.name}`,
       hint: `${gesture.what}. Jev picks this for lines like “${gesture.examples[0]}”; energy scales its tempo${gesture.cyclic ? " and cycles" : ""}.`,
+      motion: gesture.motion,
+    })),
+    ...microGestures.map((gesture) => ({
+      name: `Body language · ${gesture.name}`,
+      hint: `${gesture.what}. Small body language Jev may pick while Charlie talks, listens or idles, for moments like “${gesture.examples[0]}”.`,
       motion: gesture.motion,
     })),
   ];

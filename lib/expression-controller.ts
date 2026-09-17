@@ -17,6 +17,9 @@ import {
   learnGesture,
   libraryCriteria,
   libraryDigest,
+  endsAtRest,
+  microGestures,
+  normalizeLearned,
   shapeGesture,
   type Gesture,
 } from "./gesture-library";
@@ -32,8 +35,14 @@ export type Thresholds = {
   stop: number;
   /** Confidence that a user line is an explicit movement request. */
   explicit: number;
+  /** Gesture confidence for an explicit request while the line is still being spoken, and once it is done. */
+  gesture: number;
+  gestureDone: number;
   /** Below this, the library does not cover an explicit request: ask the planner. */
   covered: number;
+  /** Probability of the most likely body language before it runs, and of "none" before stillness wins. */
+  micro: number;
+  microStill: number;
 };
 export type ExpressionOptions = {
   initialStill?: boolean;
@@ -43,6 +52,11 @@ export type ExpressionOptions = {
   minIntervalMs?: number;
   /** An incidental gesture is not repeated within this window. */
   cooldownMs?: number;
+  /** Least time between two pieces of body language, and before the same one again. */
+  microGapMs?: number;
+  microCooldownMs?: number;
+  /** While nobody speaks, ask again this often so Charlie idles visibly. */
+  idleTickMs?: number;
   thresholds?: Partial<Thresholds>;
   library?: () => Gesture[];
 };
@@ -53,13 +67,20 @@ const defaults: Required<Omit<ExpressionOptions, "library" | "thresholds">> & {
   settleMs: 800,
   minIntervalMs: 250,
   cooldownMs: 6000,
+  microGapMs: 2500,
+  microCooldownMs: 8000,
+  idleTickMs: 5000,
   thresholds: {
     start: 0.6,
     startPartial: 0.8,
     startExplicitPartial: 0.7,
     stop: 0.85,
     explicit: 0.6,
+    gesture: 0.7,
+    gestureDone: 0.5,
     covered: 0.5,
+    micro: 0.2,
+    microStill: 0.6,
   },
 };
 
@@ -176,6 +197,32 @@ export function expressionQuestions(
         },
       ],
     ),
+    sustain: score("How long should a movement Charlie starts now go on?", [
+      { what: "brief; one or two beats", examples: ["a quick hello", "a nod"] },
+      { what: "normal", examples: ["an ordinary request", "a joke"] },
+      {
+        what: "extended; keep it going",
+        examples: [
+          "keep clapping",
+          "a long celebration",
+          "dance for a while",
+          "run!",
+        ],
+      },
+    ]),
+    body_language: choice(
+      "Charlie is an expressive, engaged robot who is never a statue. Apart from any gesture above: which small body language would he show right now, given who is speaking and what is being said?",
+      {
+        ...libraryCriteria(microGestures, false),
+        none: {
+          what: "Complete stillness is better right now: a grave moment, or the body would distract from the words",
+          examples: [
+            "bad news being delivered",
+            "the user asked him to hold still",
+          ],
+        },
+      },
+    ),
   };
 }
 
@@ -205,6 +252,12 @@ export class ExpressionController {
   private latest?: { lines: ExpressionLine[]; speaking: boolean };
   private lastKey = "";
   private lastFragmentAt = 0;
+  /** The pose a completed action left, until something returns to rest. */
+  private pose?: string;
+  private lastMicroAt = -Infinity;
+  private lastMicro = new Map<string, number>();
+  private idleTicks = 0;
+  private idle?: ReturnType<typeof setTimeout>;
   private settle?: ReturnType<typeof setTimeout>;
   private next?: ReturnType<typeof setTimeout>;
   private inFlight?: AbortController;
@@ -269,6 +322,7 @@ export class ExpressionController {
     this.invalidatePlan();
     clearTimeout(this.settle);
     clearTimeout(this.next);
+    clearTimeout(this.idle);
     this.queued = false;
     this.latest = undefined;
     const user = lines.findLast((l) => l.role === "user");
@@ -291,9 +345,24 @@ export class ExpressionController {
       this.performed = new Set();
     }
     this.latest = { lines, speaking };
+    this.idleTicks = 0;
     clearTimeout(this.settle);
-    this.settle = setTimeout(() => this.schedule(true), this.options.settleMs);
+    clearTimeout(this.idle);
+    this.settle = setTimeout(() => {
+      this.schedule(true);
+      this.tick();
+    }, this.options.settleMs);
     this.schedule(false);
+  }
+  /** Silence: ask again every few seconds so Charlie can idle, up to two minutes. */
+  private tick() {
+    clearTimeout(this.idle);
+    if (this.closed || this.idleTicks >= 24) return;
+    this.idle = setTimeout(() => {
+      this.idleTicks++;
+      this.schedule(true);
+      this.tick();
+    }, this.options.idleTickMs);
   }
   private key(lines: ExpressionLine[], complete: boolean) {
     return JSON.stringify([
@@ -301,6 +370,7 @@ export class ExpressionController {
       complete,
       this.moving?.action.id,
       [...this.performed],
+      this.idleTicks,
     ]);
   }
   private schedule(complete: boolean) {
@@ -335,9 +405,14 @@ export class ExpressionController {
       charlie: {
         library: libraryDigest(library),
         speaking_now: speaking,
+        silence_seconds: this.idleTicks
+          ? Math.round((performance.now() - this.lastFragmentAt) / 1000)
+          : 0,
         body: this.moving
           ? `${this.moving.action.label} (${this.moving.action.intent}), started ${((performance.now() - (this.moving.action.startedAt ?? performance.now())) / 1000).toFixed(1)}s ago`
-          : "idle, standing",
+          : this.pose
+            ? `holding the pose left by ${this.pose}; not at rest`
+            : "standing at rest",
         holding_still: this.still,
         performed_for_latest_user_line: [...this.performed],
       },
@@ -403,52 +478,90 @@ export class ExpressionController {
     const stop = a.stop?.type === "noul" ? a.stop.noul : 0;
     const start = a.start?.type === "noul" ? a.start.noul : 0;
     const energy = a.energy?.type === "score" ? a.energy.score : 1.5;
+    const sustain = a.sustain?.type === "score" ? a.sustain.score : 1;
     if (fromUser && stop >= t.stop && !this.performed.has("stop")) {
       this.performed.add("stop");
       this.stop("User asked to stop");
       return "stop";
     }
+    const main = this.gesture(a, lines, complete, library, timing, {
+      start,
+      energy,
+      sustain,
+    });
+    if (main.started) return main.outcome;
+    const micro = this.bodyLanguage(a, user, timing, { energy, sustain });
+    return micro ? `${main.outcome}; ${micro}` : main.outcome;
+  }
+  /** The main channel: an explicit request, or an incidental gesture Jev wants to start. */
+  private gesture(
+    a: JevAnswers,
+    lines: ExpressionLine[],
+    complete: boolean,
+    library: Gesture[],
+    timing: { sentAt: number; utteranceAt: number },
+    scores: { start: number; energy: number; sustain: number },
+  ): { started: boolean; outcome: string } {
+    const t = this.options.thresholds;
+    const latest = lines.at(-1);
+    const user = lines.findLast((l) => l.role === "user");
+    const fromUser = latest?.role === "user";
+    const { start, energy, sustain } = scores;
     // The intent answer is about the latest user line even while Charlie is
     // replying to it, so an explicit request survives his reply; the user's
     // line is finished once he has started answering.
     const explicit = isExplicit(a.intent, t.explicit);
     const userDone = complete || !fromUser;
-    const threshold = explicit
-      ? userDone
-        ? t.start
-        : t.startExplicitPartial
-      : complete
-        ? t.start
-        : t.startPartial;
-    if (start < threshold)
-      return `no start (${start.toFixed(2)} < ${threshold}${complete ? "" : " partial"})`;
     const name = a.gesture?.type === "choice" ? a.gesture.choice : "";
+    const confidence = a.gesture?.type === "choice" ? a.gesture.confidence : 0;
     const covered = a.covered?.type === "noul" ? a.covered.noul : 1;
+    const no = (outcome: string) => ({ started: false, outcome });
+    if (explicit) {
+      // A request is gated on what was asked, not on Jev's appetite for a
+      // new gesture: "go back to normal" is a request even when nothing new
+      // seems to start.
+      const bar = userDone ? t.gestureDone : t.gesture;
+      if (confidence < bar)
+        return no(
+          `request unclear (${name} ${confidence.toFixed(2)} < ${bar}${complete ? "" : " partial"})`,
+        );
+    } else {
+      const threshold = complete ? t.start : t.startPartial;
+      if (start < threshold)
+        return no(
+          `no start (${start.toFixed(2)} < ${threshold}${complete ? "" : " partial"})`,
+        );
+    }
     if (name === NOT_IN_LIBRARY || (explicit && covered < t.covered)) {
-      if (!explicit) return "not in library, not explicit";
-      if (this.planning) return "planner still composing";
+      if (!explicit) return no("not in library, not explicit");
+      if (this.planning) return no("planner still composing");
       if (this.performed.has("planner"))
-        return "planner already asked for this line";
+        return no("planner already asked for this line");
       this.performed.add("planner");
       void this.plan(lines, timing);
-      return `planner asked (covered ${covered.toFixed(2)})`;
+      return {
+        started: true,
+        outcome: `planner asked (covered ${covered.toFixed(2)})`,
+      };
     }
     const entry = library.find((g) => g.name === name);
-    if (!entry) return `unknown gesture ${name}`;
+    if (!entry) return no(`unknown gesture ${name}`);
     if (this.performed.has(name))
-      return `${name} already performed for this line`;
+      return no(`${name} already performed for this line`);
     if (!explicit) {
-      if (this.still) return `${name} skipped: holding still`;
+      if (this.still) return no(`${name} skipped: holding still`);
       if (this.moving?.action.intent === "explicit")
-        return `${name} skipped: explicit ${this.moving.action.label} running`;
+        return no(
+          `${name} skipped: explicit ${this.moving.action.label} running`,
+        );
       if (this.moving?.action.label === name)
-        return `${name} skipped: already running`;
+        return no(`${name} skipped: already running`);
       const last = this.lastPerformedAt.get(name);
       if (
         last !== undefined &&
         performance.now() - last < this.options.cooldownMs
       )
-        return `${name} skipped: cooldown`;
+        return no(`${name} skipped: cooldown`);
     }
     this.performed.add(name);
     if (explicit && this.planning)
@@ -462,8 +575,56 @@ export class ExpressionController {
       timing.sentAt,
     );
     action.toolReturnedAt = performance.now();
-    void this.execute(action, shapeGesture(entry, energy));
-    return `${explicit ? "explicit" : "incidental"} ${name}, energy ${energy.toFixed(1)}${replaced ? ` (replaces ${replaced})` : ""}`;
+    void this.execute(action, shapeGesture(entry, energy, sustain));
+    return {
+      started: true,
+      outcome: `${explicit ? "explicit" : "incidental"} ${name}, energy ${energy.toFixed(1)}${replaced ? ` (replaces ${replaced})` : ""}`,
+    };
+  }
+  /** The quiet channel: small body language while talking, listening or idling. */
+  private bodyLanguage(
+    a: JevAnswers,
+    user: ExpressionLine | undefined,
+    timing: { sentAt: number; utteranceAt: number },
+    scores: { energy: number; sustain: number },
+  ): string | undefined {
+    const t = this.options.thresholds;
+    const answer =
+      a.body_language?.type === "choice" ? a.body_language : undefined;
+    if (!answer) return;
+    // "none" is one option among ten; stillness wins only as a clear
+    // majority, otherwise the most likely body language runs.
+    const stillness = answer.probabilities.none ?? 0;
+    if (stillness >= t.microStill) return `stillness ${stillness.toFixed(2)}`;
+    const [name, probability] = Object.entries(answer.probabilities)
+      .filter(([key]) => key !== "none")
+      .sort((x, y) => y[1] - x[1])[0] ?? ["", 0];
+    if (!name || probability < t.micro)
+      return `${name || "body language"} ${probability.toFixed(2)} < ${t.micro}`;
+    if (this.still || this.moving) return;
+    const now = performance.now();
+    if (now - this.lastMicroAt < this.options.microGapMs)
+      return `${name}: too soon`;
+    const last = this.lastMicro.get(name);
+    if (last !== undefined && now - last < this.options.microCooldownMs)
+      return `${name}: cooldown`;
+    const entry = microGestures.find((g) => g.name === name);
+    if (!entry) return;
+    this.lastMicroAt = now;
+    this.lastMicro.set(name, now);
+    const action = this.action(
+      name,
+      "incidental",
+      user?.id ?? "",
+      timing.utteranceAt,
+      timing.sentAt,
+    );
+    action.toolReturnedAt = now;
+    void this.execute(
+      action,
+      shapeGesture(entry, scores.energy, scores.sustain),
+    );
+    return `body language ${name} ${probability.toFixed(2)}`;
   }
   private action(
     label: string,
@@ -511,6 +672,8 @@ export class ExpressionController {
       if (this.moving === work) {
         this.moving = undefined;
         this.lastPerformedAt.set(action.label, performance.now());
+        if (result.status === "completed")
+          this.pose = endsAtRest(motion) ? undefined : action.label;
         this.state(
           action,
           result.status === "completed" ? "completed" : "canceled",
@@ -604,7 +767,8 @@ export class ExpressionController {
       } else {
         action.label = decision.label;
         action.intent = decision.intent;
-        const result = await this.execute(action, decision.motion);
+        const motion = normalizeLearned(decision.label, decision.motion);
+        const result = await this.execute(action, motion);
         if (result?.status === "completed" && user) {
           const name = gestureName(decision.label);
           this.performed.add(name);
@@ -613,7 +777,7 @@ export class ExpressionController {
               name,
               what: decision.label,
               examples: [user.text.trim().slice(0, 120)],
-              motion: decision.motion,
+              motion,
             })
           )
             action.detail = [action.detail, `Learned as ${name}`]
@@ -680,6 +844,7 @@ export class ExpressionController {
     if (!this.closed) this.confirmHeld(detail);
   }
   reset() {
+    this.pose = undefined;
     this.stop("Movement stopped for pose reset");
     if (!this.controller.reset)
       throw new Error("The avatar is not ready to reset.");
@@ -709,6 +874,7 @@ export class ExpressionController {
     this.closed = true;
     clearTimeout(this.settle);
     clearTimeout(this.next);
+    clearTimeout(this.idle);
     this.inFlight?.abort();
     this.stop("Live call ended");
     this.still = still;
@@ -725,5 +891,11 @@ function summarize(a: JevAnswers) {
   if (a.intent?.type === "choice") parts.push(a.intent.choice);
   if (a.energy?.type === "score")
     parts.push(`energy ${a.energy.score.toFixed(1)}`);
+  if (a.sustain?.type === "score")
+    parts.push(`sustain ${a.sustain.score.toFixed(1)}`);
+  if (a.body_language?.type === "choice")
+    parts.push(
+      `bl ${a.body_language.choice} ${(a.body_language.probabilities[a.body_language.choice] ?? 0).toFixed(2)}`,
+    );
   return parts.join(" · ");
 }

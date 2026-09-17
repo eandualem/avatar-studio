@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Play, Square, Copy, RotateCcw } from "lucide-react";
 import { useMotionLab } from "@/hooks/useStudio";
 import { motionExamples, previewMotion } from "@/lib/motion-lab";
+import { forgetLearned, learnedGestures } from "@/lib/gesture-library";
 import { actions } from "@/lib/host-tools";
 import type { MotionResult } from "@/types/avatar";
 
@@ -106,6 +107,18 @@ export function MotionLab({ ready }: { ready: boolean }) {
         </select>
       </label>
       <p className="lab-hint">{motionExamples[example].hint}</p>
+      <p className="lab-hint">
+        Learned movements in this browser: {learnedGestures().length}.{" "}
+        <button
+          type="button"
+          onClick={() => {
+            forgetLearned();
+            setCopyStatus("Learned movements forgotten");
+          }}
+        >
+          Forget learned movements
+        </button>
+      </p>
       <div className="lab-coordinates">
         Height = 1 · X: Charlie’s left · Y: up · Z: toward you.
         <br />

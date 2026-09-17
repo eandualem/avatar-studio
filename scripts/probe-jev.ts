@@ -40,6 +40,9 @@ const lines = process.argv.slice(2).length
       "can you wave with both hands?",
       "wave with your right hand",
       "nod",
+      "go back to your natural position",
+      "so basically the way it works is that the model decides",
+      "hmm, I'm not sure that's right",
     ];
 const questions = expressionQuestions(seedGestures);
 const rows: Record<string, string | number>[] = [];
@@ -52,7 +55,8 @@ for (const text of lines) {
     charlie: {
       library: libraryDigest(seedGestures),
       speaking_now: false,
-      body: "idle, standing",
+      silence_seconds: 0,
+      body: "standing at rest",
       holding_still: false,
       performed_for_latest_user_line: [],
     },
@@ -97,6 +101,11 @@ for (const text of lines) {
     covered: a.covered.type === "noul" ? a.covered.noul.toFixed(2) : "",
     gesture: top,
     energy: a.energy.type === "score" ? a.energy.score.toFixed(1) : "",
+    sustain: a.sustain.type === "score" ? a.sustain.score.toFixed(1) : "",
+    body_language:
+      a.body_language.type === "choice"
+        ? `${a.body_language.choice} ${(a.body_language.probabilities[a.body_language.choice] ?? 0).toFixed(2)}`
+        : "",
   });
 }
 console.table(rows);

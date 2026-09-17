@@ -16,9 +16,13 @@ type Verdict = Partial<{
   intent: "explicit" | "incidental" | "none";
   start: number;
   gesture: string;
+  confidence: number;
   covered: number;
   stop: number;
   energy: number;
+  sustain: number;
+  body_language: string;
+  body_probability: number;
 }>;
 function answers(v: Verdict): JevAnswers {
   const intent = v.intent ?? "none";
@@ -33,8 +37,8 @@ function answers(v: Verdict): JevAnswers {
     gesture: {
       type: "choice",
       choice: v.gesture ?? "rest",
-      confidence: 0.9,
-      probabilities: { [v.gesture ?? "rest"]: 0.9 },
+      confidence: v.confidence ?? 0.9,
+      probabilities: { [v.gesture ?? "rest"]: v.confidence ?? 0.9 },
     },
     covered: { type: "noul", noul: v.covered ?? 0.9 },
     stop: { type: "noul", noul: v.stop ?? 0 },
@@ -43,6 +47,18 @@ function answers(v: Verdict): JevAnswers {
       score: v.energy ?? 1.5,
       confidence: 0.6,
       probabilities: { "1": 0.5, "2": 0.5 },
+    },
+    sustain: {
+      type: "score",
+      score: v.sustain ?? 1,
+      confidence: 0.6,
+      probabilities: { "1": 1 },
+    },
+    body_language: {
+      type: "choice",
+      choice: v.body_language ?? "none",
+      confidence: 0.8,
+      probabilities: { [v.body_language ?? "none"]: v.body_probability ?? 0.8 },
     },
   };
 }
@@ -130,7 +146,13 @@ describe("continuous expression from the transcript", () => {
       "covered",
       "stop",
       "energy",
+      "sustain",
+      "body_language",
     ]);
+    expect(
+      questions.body_language.type === "choice" &&
+        Object.keys(questions.body_language.criteria),
+    ).toContain("none");
     expect(
       questions.gesture.type === "choice" &&
         Object.keys(questions.gesture.criteria),
@@ -144,7 +166,7 @@ describe("continuous expression from the transcript", () => {
         },
       ],
       charlie: {
-        body: "idle, standing",
+        body: "standing at rest",
         performed_for_latest_user_line: [],
         library: expect.arrayContaining([expect.stringMatching(/^clap: /)]),
       },
@@ -170,7 +192,7 @@ describe("continuous expression from the transcript", () => {
     expect(body.snapshot().pulse).toMatchObject({
       calls: 3,
       verdict: expect.stringContaining("clap"),
-      outcome: "clap already performed for this line",
+      outcome: expect.stringContaining("clap already performed for this line"),
     });
     expect(body.snapshot().pulses?.[0].outcome).toBe(
       "explicit clap, energy 2.0",
@@ -179,13 +201,23 @@ describe("continuous expression from the transcript", () => {
   it("keeps an explicit request explicit across Charlie's reply, at the lower partial bar", async () => {
     const { body, motion, oracle } = setup();
     vi.mocked(oracle.ask).mockResolvedValue(
-      answers({ intent: "explicit", start: 0.65, gesture: "wave" }),
+      answers({
+        intent: "explicit",
+        start: 0.65,
+        gesture: "wave",
+        confidence: 0.6,
+      }),
     );
     body.observe([line("user", "can you wave")], false);
     await vi.advanceTimersByTimeAsync(10);
     expect(motion.execute).not.toHaveBeenCalled();
     vi.mocked(oracle.ask).mockResolvedValue(
-      answers({ intent: "explicit", start: 0.72, gesture: "wave" }),
+      answers({
+        intent: "explicit",
+        start: 0.72,
+        gesture: "wave",
+        confidence: 0.6,
+      }),
     );
     body.observe(
       [line("user", "can you wave"), line("assistant", "Sure, I'm")],
@@ -197,7 +229,9 @@ describe("continuous expression from the transcript", () => {
       label: "wave",
       intent: "explicit",
     });
-    expect(body.snapshot().pulse?.outcome).toBe("explicit wave, energy 1.5");
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "explicit wave, energy 1.5",
+    );
   });
   it("sends an explicit request the library does not cover to the planner, even when Jev names the nearest entry", async () => {
     const { body, motion, oracle, planner } = setup();
@@ -212,7 +246,9 @@ describe("continuous expression from the transcript", () => {
     body.observe([line("user", "wave with both hands")], false);
     await vi.advanceTimersByTimeAsync(10);
     expect(planner.decide).toHaveBeenCalledOnce();
-    expect(body.snapshot().pulse?.outcome).toBe("planner asked (covered 0.04)");
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "planner asked (covered 0.04)",
+    );
     expect(motion.execute).toHaveBeenCalledOnce();
     expect(vi.mocked(motion.execute).mock.calls[0][0]).toEqual(
       expect.objectContaining({
@@ -225,7 +261,7 @@ describe("continuous expression from the transcript", () => {
     );
     await vi.advanceTimersByTimeAsync(900);
     expect(motion.execute).toHaveBeenCalledOnce();
-    expect(body.snapshot().pulse?.outcome).toBe(
+    expect(body.snapshot().pulse?.outcome).toContain(
       "touch_toes already performed for this line",
     );
   });
@@ -422,7 +458,7 @@ describe("continuous expression from the transcript", () => {
     );
     await vi.advanceTimersByTimeAsync(10);
     expect(planner.decide).toHaveBeenCalledOnce();
-    expect(body.snapshot().pulse?.outcome).toBe("planner still composing");
+    expect(body.snapshot().pulse?.outcome).toContain("planner still composing");
     expect(planner.cancel).not.toHaveBeenCalled();
     finish(plan);
     await vi.advanceTimersByTimeAsync(10);
@@ -519,6 +555,180 @@ describe("continuous expression from the transcript", () => {
     );
     await vi.advanceTimersByTimeAsync(1000);
     expect(motion.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("natural expression", () => {
+  it("serves an explicit return to rest even when Jev sees no new gesture to start, because the state says which pose is held", async () => {
+    const { body, motion, oracle } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.9, gesture: "kick_stance" }),
+    );
+    body.observe([line("user", "kicking stance")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "explicit",
+        start: 0.35,
+        gesture: "rest",
+        confidence: 0.55,
+      }),
+    );
+    body.observe(
+      [
+        line("user", "kicking stance"),
+        line("user", "go back to natural position", "u2"),
+      ],
+      false,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(vi.mocked(oracle.ask).mock.lastCall![0]).toMatchObject({
+      charlie: { body: "holding the pose left by kick_stance; not at rest" },
+    });
+    // Unclear while partial, served once the line settles.
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "request unclear (rest 0.55 < 0.7 partial)",
+    );
+    await vi.advanceTimersByTimeAsync(900);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(body.snapshot().actions[1]).toMatchObject({
+      label: "rest",
+      intent: "explicit",
+      status: "completed",
+    });
+    body.observe(
+      [
+        line("user", "kicking stance"),
+        line("user", "go back to natural position", "u2"),
+        line("assistant", "Done"),
+      ],
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(vi.mocked(oracle.ask).mock.lastCall![0]).toMatchObject({
+      charlie: { body: "standing at rest" },
+    });
+  });
+  it("runs small body language while Charlie talks, spaced out, never over a running gesture or stillness", async () => {
+    const { body, motion, oracle } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "none",
+        body_language: "nod_small",
+        body_probability: 0.62,
+      }),
+    );
+    body.observe([line("user", "so the thing is")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(
+      vi.mocked(motion.execute).mock.calls[0][0].waypoints[0].head,
+    ).toEqual({ yaw: 0, nod: 0.1 });
+    expect(body.snapshot().actions[0]).toMatchObject({
+      label: "nod_small",
+      intent: "incidental",
+    });
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "body language nod_small 0.62",
+    );
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "none",
+        body_language: "head_tilt",
+        body_probability: 0.7,
+      }),
+    );
+    body.observe([line("user", "so the thing is, right")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toContain("head_tilt: too soon");
+    await vi.advanceTimersByTimeAsync(2600);
+    body.observe([line("user", "so the thing is, right, I think")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "none", body_language: "none", body_probability: 0.7 }),
+    );
+    await vi.advanceTimersByTimeAsync(3000);
+    body.observe([line("user", "so the thing is, right, I think so")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(body.snapshot().pulse?.outcome).toContain("stillness 0.70");
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "none",
+        body_language: "nod_small",
+        body_probability: 0.15,
+      }),
+    );
+    body.observe(
+      [line("user", "so the thing is, right, I think so, yes")],
+      false,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(body.snapshot().pulse?.outcome).toContain("nod_small 0.15 < 0.2");
+    body.stop();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "none", body_language: "sway", body_probability: 0.9 }),
+    );
+    body.observe([line("user", "quiet now", "u2")], false);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+  });
+  it("keeps asking during silence so Charlie can idle, and stops at the cap", async () => {
+    const { body, oracle } = setup({ idleTickMs: 1000 });
+    body.observe([line("user", "okay")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(oracle.ask).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(800);
+    expect(oracle.ask).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(oracle.ask).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(oracle.ask).mock.lastCall![0]).toMatchObject({
+      charlie: { silence_seconds: 2 },
+    });
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(oracle.ask).toHaveBeenCalledTimes(26);
+    body.observe([line("user", "okay, back", "u2")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(oracle.ask).toHaveBeenCalledTimes(27);
+    expect(vi.mocked(oracle.ask).mock.lastCall![0]).toMatchObject({
+      charlie: { silence_seconds: 0 },
+    });
+  });
+  it("gives a planned gesture a way back to rest before running and learning it, and scales cycles with sustain", async () => {
+    const { body, motion, oracle, planner } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "explicit",
+        start: 0.9,
+        gesture: "not_in_library",
+        covered: 0.05,
+      }),
+    );
+    vi.mocked(planner.decide).mockResolvedValueOnce({
+      ...plan,
+      arguments: {
+        intent: "explicit",
+        label: "Wave both arms high",
+        waypoints: [{ time: 0.6, left: { position: [0.24, 0.98, 0.04] } }],
+      },
+    });
+    body.observe([line("user", "wave with both hands")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    const executed = vi.mocked(motion.execute).mock.calls[0][0];
+    expect(executed.finish).toHaveLength(1);
+    expect(
+      JSON.parse(store.get("avatar-studio.gesture-library")!)[0].motion.finish,
+    ).toHaveLength(1);
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.9, gesture: "clap", sustain: 2 }),
+    );
+    body.observe([line("user", "keep clapping", "u2")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(vi.mocked(motion.execute).mock.calls[1][0].repeat).toBe(5);
   });
 });
 

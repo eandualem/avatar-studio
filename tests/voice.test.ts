@@ -27,18 +27,55 @@ vi.mock("@/lib/jev", async (importOriginal) => ({
 }));
 // Jev's answers for the tests below: quiet unless a test asks for a movement.
 const jevVerdict = (): JevAnswers => ({
-  intent: { type: "choice", choice: "none", confidence: 0.9, probabilities: { none: 0.9 } },
+  intent: {
+    type: "choice",
+    choice: "none",
+    confidence: 0.9,
+    probabilities: { none: 0.9 },
+  },
   start: { type: "noul", noul: 0.05 },
-  gesture: { type: "choice", choice: "rest", confidence: 0.5, probabilities: { rest: 0.5 } },
+  gesture: {
+    type: "choice",
+    choice: "rest",
+    confidence: 0.5,
+    probabilities: { rest: 0.5 },
+  },
   covered: { type: "noul", noul: 0.9 },
   stop: { type: "noul", noul: 0.02 },
-  energy: { type: "score", score: 1, confidence: 0.6, probabilities: { "1": 1 } },
+  energy: {
+    type: "score",
+    score: 1,
+    confidence: 0.6,
+    probabilities: { "1": 1 },
+  },
+  sustain: {
+    type: "score",
+    score: 1,
+    confidence: 0.6,
+    probabilities: { "1": 1 },
+  },
+  body_language: {
+    type: "choice",
+    choice: "none",
+    confidence: 0.9,
+    probabilities: { none: 0.9 },
+  },
 });
 const requestPlanner = (): JevAnswers => ({
   ...jevVerdict(),
-  intent: { type: "choice", choice: "explicit", confidence: 0.95, probabilities: { explicit: 0.95 } },
+  intent: {
+    type: "choice",
+    choice: "explicit",
+    confidence: 0.95,
+    probabilities: { explicit: 0.95 },
+  },
   start: { type: "noul", noul: 0.95 },
-  gesture: { type: "choice", choice: "not_in_library", confidence: 0.9, probabilities: { not_in_library: 0.9 } },
+  gesture: {
+    type: "choice",
+    choice: "not_in_library",
+    confidence: 0.9,
+    probabilities: { not_in_library: 0.9 },
+  },
 });
 vi.mock("@/lib/voice-http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/voice-http")>()),
@@ -560,9 +597,25 @@ it("starts a body decision from user speech without delegation and keeps only Li
   expect(motion.execute).toHaveBeenCalledOnce();
   expect(bodyTransport.decide).toHaveBeenCalledOnce();
   // Every fragment, both roles, reached Jev with the transcript as state.
-  expect(vi.mocked(jevOracle.ask).mock.calls.map(([state]) => (state as { conversation: { speaker: string; text: string }[] }).conversation.at(-1))).toEqual([
-    { speaker: "user", text: "Wave please", transcript: "partial, still speaking" },
-    { speaker: "charlie", text: "Sure.", transcript: "partial, still speaking" },
+  expect(
+    vi
+      .mocked(jevOracle.ask)
+      .mock.calls.map(([state]) =>
+        (
+          state as { conversation: { speaker: string; text: string }[] }
+        ).conversation.at(-1),
+      ),
+  ).toEqual([
+    {
+      speaker: "user",
+      text: "Wave please",
+      transcript: "partial, still speaking",
+    },
+    {
+      speaker: "charlie",
+      text: "Sure.",
+      transcript: "partial, still speaking",
+    },
     { speaker: "charlie", text: "Sure.", transcript: "complete" },
   ]);
   expect(client.snapshot().messages.map((m) => m.content)).toEqual([
