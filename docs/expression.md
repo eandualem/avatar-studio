@@ -93,17 +93,26 @@ Thresholds live in `ExpressionController` and are the whole policy:
   replying, so a request still being spoken is served when his reply
   arrives. Explicit actions clear stillness, replace anything, and are
   reported to Live as facts.
+- **Served.** Once a user line's request has started a gesture or a plan,
+  that line is no longer a request. Charlie's own reply ("sure, I can do
+  that") scored `rest` 0.53 in a real call and replaced the wave it was
+  answering; now it cannot.
 - **Incidental** gestures from the main channel start at `start ≥ 0.6` on a
   complete line and `≥ 0.8` while it is spoken. They never interrupt an
   explicit action, never run while holding still, and are not repeated
-  within 6 s.
+  within 6 s. A **demonstration** is the exception: when Charlie names a
+  movement while speaking ("like a small wave") and Jev's gesture confidence
+  is `≥ 0.85`, it starts at `start ≥ 0.5`.
 - **Body language**, the quiet channel: when the main channel started
   nothing and nothing is moving, the most likely body language runs unless
   "none" is a clear majority (`≥ 0.6`) or the best option is under `0.2`; at
-  most one every 2.5 s and the same one at most every 8 s. It is what makes
-  Charlie nod while you talk, glance away while he thinks, and open his
-  hands while he explains. The question tells Jev he is "never a statue";
-  worded neutrally, "none" absorbed half the mass on every line.
+  most one every 2.5 s and the same one at most every 8 s. Jev repeats its
+  favourite (a full minute of `nod_small` in one call), so when that one is
+  on cooldown the next option with `≥ 0.08` runs instead. It is what makes
+  Charlie nod while you talk, glance away while he thinks, stretch in a
+  lull and open his hands while he explains. The question tells Jev he is
+  "never a statue"; worded neutrally, "none" absorbed half the mass on
+  every line.
 - **Silence** re-asks every 5 s for up to two minutes, with
   `silence_seconds` in the state, so Charlie can shift his weight or glance
   around while nobody speaks.
@@ -130,7 +139,8 @@ shake_head, shrug, thinking, lean_in, celebrate, run_in_place, look_left,
 look_right, point_forward, bow, laugh, kick_stance, crouch, raise_hand,
 open_arms, dance and rest. `microGestures` is the body-language set:
 nod_small, head_tilt, glance_away, lean_in_small, lean_back, open_hands,
-hand_beat, shrug_small and sway. Each has a `what` and `examples` that
+hand_beat, shrug_small, stretch, hands_on_hips, gesture_open, point_up,
+look_around and sway. Each has a `what` and `examples` that
 become Jev's criteria, and a `motion` that is a valid `move_avatar` plan.
 `tests/gesture-library.test.ts` runs every entry on the shipped skeleton and
 fails on any collision, floor penetration or blocked target. The Dev panel
@@ -147,6 +157,17 @@ movements** in the Dev panel clears them, for when a seed entry should take
 over. Learned entries live in this browser's local storage
 (`avatar-studio.gesture-library`, last 40) and are offered to Jev from the
 next call on. Nothing is stored server-side.
+
+## One body, one voice
+
+Live is told what its body does, as quiet facts on the data channel
+(started, completed, canceled, held, failed, with the movement's name).
+The persona in `profiles/live-instructions.md` treats them as body sense:
+it knows whether it already did what was asked, whether it is moving, or
+whether something failed, and it never narrates any of it. "I'm waving
+now", "there we go" and "that's done" are exactly what a person would not
+say, so Charlie does not either; he says "sure" or "here you go" and keeps
+talking.
 
 ## Reading a call afterwards
 

@@ -554,7 +554,7 @@ export const microGestures: Gesture[] = [
     motion: {
       interpolation: "swing",
       waypoints: [
-        { time: 0.3, head: { yaw: 0, nod: 0.1 } },
+        { time: 0.3, head: { yaw: 0, nod: 0.14 } },
         { time: 0.6, head: { yaw: 0, nod: 0 } },
       ],
       repeat: 2,
@@ -584,15 +584,16 @@ export const microGestures: Gesture[] = [
   },
   {
     name: "lean_in_small",
-    what: "Lean slightly toward the user, interested",
+    what: "Lean toward the user with the head slightly forward, interested, then ease back",
     examples: ["tell me more", "oh, what happened?"],
     motion: {
       waypoints: [
         {
           time: 0.6,
-          torso: { bend: 0.09, twist: 0, lean: 0 },
+          torso: { bend: 0.12, twist: 0, lean: 0 },
           head: { yaw: 0, nod: -0.04 },
         },
+        { time: 2.4, torso: rest.torso, head: rest.head },
       ],
     },
   },
@@ -668,6 +669,82 @@ export const microGestures: Gesture[] = [
     },
   },
   {
+    name: "stretch",
+    what: "Reach both arms up and stretch, then let them down",
+    examples: ["long day", "let's get going", "a pause after sitting still"],
+    motion: {
+      waypoints: [
+        {
+          time: 0.9,
+          left: { position: [0.2, 1.0, 0.03], direction: up, ...open },
+          right: { position: [-0.2, 1.0, 0.03], direction: up, ...open },
+          torso: { bend: -0.06, twist: 0, lean: 0 },
+          head: { yaw: 0, nod: -0.08 },
+        },
+        { time: 1.7, torso: { bend: -0.06, twist: 0, lean: 0.06 } },
+        { time: 2.9, ...lowerHands },
+      ],
+    },
+  },
+  {
+    name: "hands_on_hips",
+    what: "Hands on the hips, elbows out, a confident or playful stance, held a moment",
+    examples: ["alright then!", "so what's the plan?", "ha, is that so"],
+    motion: {
+      waypoints: [
+        {
+          time: 0.7,
+          left: { position: [0.24, 0.5, 0.02], direction: [0.2, -1, 0.3], curls: [0.3, 0.5, 0.5, 0.5, 0.5] },
+          right: { position: [-0.24, 0.5, 0.02], direction: [-0.2, -1, 0.3], curls: [0.3, 0.5, 0.5, 0.5, 0.5] },
+          shoulders: { left: 0.06, right: 0.06 },
+        },
+        { time: 3, left: rest.left, right: rest.right, shoulders: rest.shoulders },
+      ],
+    },
+  },
+  {
+    name: "gesture_open",
+    what: "One hand sweeps out to the side, palm up, offering or explaining",
+    examples: ["for example", "you could also", "on the other hand"],
+    motion: {
+      waypoints: [
+        {
+          time: 0.5,
+          left: { position: [0.4, 0.58, 0.18], direction: [0.7, -0.2, 0.7], ...open },
+          torso: { bend: 0, twist: -0.06, lean: 0.03 },
+        },
+        { time: 1.9, left: rest.left, torso: rest.torso },
+      ],
+    },
+  },
+  {
+    name: "point_up",
+    what: "Index finger raised beside the head, making a point or having an idea",
+    examples: ["oh, one thing", "here's an idea", "actually"],
+    motion: {
+      waypoints: [
+        {
+          time: 0.45,
+          right: { position: [-0.22, 0.8, 0.14], direction: [0, 1, 0.1], curls: [0.65, 0, 0.85, 0.85, 0.85] },
+          head: { yaw: 0, nod: -0.05 },
+        },
+        { time: 1.8, right: rest.right, head: rest.head },
+      ],
+    },
+  },
+  {
+    name: "look_around",
+    what: "Look to one side and then the other, taking the room in, then back to the user",
+    examples: ["hmm, where were we", "let me see", "a lull in the conversation"],
+    motion: {
+      waypoints: [
+        { time: 0.6, head: { yaw: 0.35, nod: 0 } },
+        { time: 1.6, head: { yaw: -0.35, nod: 0 } },
+        { time: 2.4, head: { yaw: 0, nod: 0 } },
+      ],
+    },
+  },
+  {
     name: "sway",
     what: "Shift the weight from one foot to the other, idling",
     examples: ["silence", "a pause in the conversation"],
@@ -675,13 +752,13 @@ export const microGestures: Gesture[] = [
       waypoints: [
         {
           time: 0.9,
-          pelvis: { offset: [0.03, -0.005, 0], yaw: 0.03 },
-          torso: { bend: 0, twist: 0, lean: 0.03 },
+          pelvis: { offset: [0.05, -0.008, 0], yaw: 0.04 },
+          torso: { bend: 0, twist: 0.03, lean: 0.05 },
         },
         {
           time: 2.2,
-          pelvis: { offset: [-0.02, -0.005, 0], yaw: -0.02 },
-          torso: { bend: 0, twist: 0, lean: -0.02 },
+          pelvis: { offset: [-0.04, -0.008, 0], yaw: -0.03 },
+          torso: { bend: 0, twist: -0.03, lean: -0.04 },
         },
         { time: 3.2, pelvis: rest.pelvis, torso: rest.torso },
       ],

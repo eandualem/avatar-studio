@@ -32,9 +32,10 @@ a model that is busy talking. So:
   last check happens immediately before the engine starts.
 - **Facts flow back quietly.** When the engine actually starts, completes,
   cancels or fails an explicit action, the app appends one short factual line
-  to Live over the data channel (`session.thinking.append`, not user speech),
-  so Live can say "I'm waving now" only once it is true. The persona forbids
-  claiming movement without such a fact.
+  to Live over the data channel (`session.thinking.append`, not user speech).
+  The persona uses them as body sense, never as something to announce: it
+  will not say "I'm waving now" or "that's done", and it will not claim a
+  movement it has no fact for.
 
 The model that plans a movement the library lacks is chosen in the header
 (**Body model**). The choice travels as `config.default_model` on each

@@ -40,9 +40,13 @@ export type Thresholds = {
   gestureDone: number;
   /** Below this, the library does not cover an explicit request: ask the planner. */
   covered: number;
-  /** Probability of the most likely body language before it runs, and of "none" before stillness wins. */
+  /** Probability of the most likely body language before it runs, of a fallback when the favourite is on cooldown, and of "none" before stillness wins. */
   micro: number;
+  microFallback: number;
   microStill: number;
+  /** Gesture confidence on Charlie's own line that counts as him demonstrating it, and its start bar. */
+  demonstrate: number;
+  startDemonstrate: number;
 };
 export type ExpressionOptions = {
   initialStill?: boolean;
@@ -80,7 +84,10 @@ const defaults: Required<Omit<ExpressionOptions, "library" | "thresholds">> & {
     gestureDone: 0.5,
     covered: 0.5,
     micro: 0.2,
+    microFallback: 0.08,
     microStill: 0.6,
+    demonstrate: 0.85,
+    startDemonstrate: 0.5,
   },
 };
 
@@ -129,6 +136,7 @@ export function expressionQuestions(
             "can you clap -> clap",
             "hahaha -> laugh",
             "Charlie says: let me think -> thinking",
+            "Charlie says: I can do a small wave -> wave, demonstrating as he says it",
           ],
         },
         false: {
@@ -264,6 +272,8 @@ export class ExpressionController {
   private queued = false;
   private lineId = "";
   private performed = new Set<string>();
+  /** Whether the current user line's request has been served (or planned). */
+  private served = false;
   private lastPerformedAt = new Map<string, number>();
   private options: typeof defaults;
   private library: () => Gesture[];
@@ -306,6 +316,8 @@ export class ExpressionController {
     if (["completed", "canceled", "failed", "held"].includes(status))
       action.endedAt = performance.now();
     this.publish();
+    // Live is told what its body did, as quiet facts; the persona decides
+    // how to use them and never narrates them.
     if (
       status === "failed" ||
       (action.intent === "explicit" &&
@@ -328,6 +340,7 @@ export class ExpressionController {
     const user = lines.findLast((l) => l.role === "user");
     this.lineId = user?.id ?? "";
     this.performed = new Set();
+    this.served = true;
     this.lastKey = this.key(lines, false);
     this.publish();
   }
@@ -343,6 +356,7 @@ export class ExpressionController {
     if (user && user.id !== this.lineId) {
       this.lineId = user.id;
       this.performed = new Set();
+      this.served = false;
     }
     this.latest = { lines, speaking };
     this.idleTicks = 0;
@@ -510,7 +524,10 @@ export class ExpressionController {
     // The intent answer is about the latest user line even while Charlie is
     // replying to it, so an explicit request survives his reply; the user's
     // line is finished once he has started answering.
-    const explicit = isExplicit(a.intent, t.explicit);
+    // Once the user's request has been served, his line is no longer a
+    // request: Charlie's own reply ("sure, I can do that") must not turn into
+    // a second explicit gesture that replaces the first.
+    const explicit = isExplicit(a.intent, t.explicit) && !this.served;
     const userDone = complete || !fromUser;
     const name = a.gesture?.type === "choice" ? a.gesture.choice : "";
     const confidence = a.gesture?.type === "choice" ? a.gesture.confidence : 0;
@@ -526,7 +543,15 @@ export class ExpressionController {
           `request unclear (${name} ${confidence.toFixed(2)} < ${bar}${complete ? "" : " partial"})`,
         );
     } else {
-      const threshold = complete ? t.start : t.startPartial;
+      // Charlie naming a movement while he talks ("like a small wave") is a
+      // demonstration: a confident gesture starts at a lower bar.
+      const demonstrating =
+        !fromUser && confidence >= t.demonstrate && name !== NOT_IN_LIBRARY;
+      const threshold = demonstrating
+        ? t.startDemonstrate
+        : complete
+          ? t.start
+          : t.startPartial;
       if (start < threshold)
         return no(
           `no start (${start.toFixed(2)} < ${threshold}${complete ? "" : " partial"})`,
@@ -538,6 +563,7 @@ export class ExpressionController {
       if (this.performed.has("planner"))
         return no("planner already asked for this line");
       this.performed.add("planner");
+      this.served = true;
       void this.plan(lines, timing);
       return {
         started: true,
@@ -564,6 +590,7 @@ export class ExpressionController {
         return no(`${name} skipped: cooldown`);
     }
     this.performed.add(name);
+    if (explicit) this.served = true;
     if (explicit && this.planning)
       this.invalidatePlan("Superseded by a request the library serves");
     const replaced = this.moving?.action.label;
@@ -596,18 +623,34 @@ export class ExpressionController {
     // majority, otherwise the most likely body language runs.
     const stillness = answer.probabilities.none ?? 0;
     if (stillness >= t.microStill) return `stillness ${stillness.toFixed(2)}`;
-    const [name, probability] = Object.entries(answer.probabilities)
-      .filter(([key]) => key !== "none")
-      .sort((x, y) => y[1] - x[1])[0] ?? ["", 0];
-    if (!name || probability < t.micro)
-      return `${name || "body language"} ${probability.toFixed(2)} < ${t.micro}`;
     if (this.still || this.moving) return;
     const now = performance.now();
     if (now - this.lastMicroAt < this.options.microGapMs)
-      return `${name}: too soon`;
-    const last = this.lastMicro.get(name);
-    if (last !== undefined && now - last < this.options.microCooldownMs)
-      return `${name}: cooldown`;
+      return `${answer.choice}: too soon`;
+    // Jev tends to repeat its favourite; when that one is on cooldown the
+    // next plausible option runs instead, so the body keeps varying.
+    const ranked = Object.entries(answer.probabilities)
+      .filter(([key]) => key !== "none")
+      .sort((x, y) => y[1] - x[1]);
+    const skipped: string[] = [];
+    let pick: [string, number] | undefined;
+    for (const [name, probability] of ranked) {
+      const bar =
+        pick === undefined && skipped.length === 0 ? t.micro : t.microFallback;
+      if (probability < bar) break;
+      const last = this.lastMicro.get(name);
+      if (last !== undefined && now - last < this.options.microCooldownMs) {
+        skipped.push(name);
+        continue;
+      }
+      pick = [name, probability];
+      break;
+    }
+    if (!pick)
+      return skipped.length
+        ? `${skipped.join(", ")}: cooldown`
+        : `${ranked[0]?.[0] ?? "body language"} ${(ranked[0]?.[1] ?? 0).toFixed(2)} < ${t.micro}`;
+    const [name, probability] = pick;
     const entry = microGestures.find((g) => g.name === name);
     if (!entry) return;
     this.lastMicroAt = now;
@@ -624,7 +667,7 @@ export class ExpressionController {
       action,
       shapeGesture(entry, scores.energy, scores.sustain),
     );
-    return `body language ${name} ${probability.toFixed(2)}`;
+    return `body language ${name} ${probability.toFixed(2)}${skipped.length ? ` (${skipped.join(", ")} on cooldown)` : ""}`;
   }
   private action(
     label: string,

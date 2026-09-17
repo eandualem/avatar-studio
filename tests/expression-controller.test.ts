@@ -625,7 +625,7 @@ describe("natural expression", () => {
     expect(motion.execute).toHaveBeenCalledOnce();
     expect(
       vi.mocked(motion.execute).mock.calls[0][0].waypoints[0].head,
-    ).toEqual({ yaw: 0, nod: 0.1 });
+    ).toEqual({ yaw: 0, nod: 0.14 });
     expect(body.snapshot().actions[0]).toMatchObject({
       label: "nod_small",
       intent: "incidental",
@@ -729,6 +729,123 @@ describe("natural expression", () => {
     body.observe([line("user", "keep clapping", "u2")], false);
     await vi.advanceTimersByTimeAsync(10);
     expect(vi.mocked(motion.execute).mock.calls[1][0].repeat).toBe(5);
+  });
+});
+
+describe("one body, one voice", () => {
+  it("does not let Charlie's reply turn a served request into a second explicit gesture", async () => {
+    const { body, motion, oracle, fact } = setup();
+    vi.mocked(motion.execute).mockImplementationOnce((_m, signal, started) => {
+      started?.();
+      return new Promise((resolve) =>
+        signal?.addEventListener("abort", () =>
+          resolve({ ...result, status: "interrupted" }),
+        ),
+      );
+    });
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({ intent: "explicit", start: 0.9, gesture: "wave" }),
+    );
+    body.observe([line("user", "so, can you wave")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(body.snapshot().active?.label).toBe("wave");
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "explicit",
+        start: 0.11,
+        gesture: "rest",
+        confidence: 0.53,
+      }),
+    );
+    body.observe(
+      [
+        line("user", "so, can you wave"),
+        line("assistant", "Sure, I can do that."),
+      ],
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(body.snapshot().active?.label).toBe("wave");
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().pulse?.outcome).toContain("no start (0.11");
+    expect(fact.mock.calls.map(([a]) => a.status)).toEqual(["started"]);
+  });
+  it("lets Charlie demonstrate a movement he names while speaking", async () => {
+    const { body, motion, oracle } = setup();
+    vi.mocked(oracle.ask).mockResolvedValue(answers({ intent: "none" }));
+    body.observe([line("user", "what can you do?")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "none",
+        start: 0.55,
+        gesture: "wave",
+        confidence: 0.7,
+      }),
+    );
+    body.observe(
+      [line("user", "what can you do?"), line("assistant", "Like a small")],
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).not.toHaveBeenCalled();
+    vi.mocked(oracle.ask).mockResolvedValue(
+      answers({
+        intent: "none",
+        start: 0.55,
+        gesture: "wave",
+        confidence: 0.94,
+      }),
+    );
+    body.observe(
+      [
+        line("user", "what can you do?"),
+        line("assistant", "Like a small wave,"),
+      ],
+      true,
+    );
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledOnce();
+    expect(body.snapshot().actions[0]).toMatchObject({
+      label: "wave",
+      intent: "incidental",
+    });
+  });
+  it("varies body language: when Jev's favourite is on cooldown the next plausible option runs", async () => {
+    const { body, motion, oracle } = setup();
+    const favourite = (): JevAnswers => ({
+      ...answers({ intent: "none" }),
+      body_language: {
+        type: "choice",
+        choice: "nod_small",
+        confidence: 0.6,
+        probabilities: {
+          nod_small: 0.6,
+          head_tilt: 0.12,
+          glance_away: 0.05,
+          none: 0.2,
+        },
+      },
+    });
+    vi.mocked(oracle.ask).mockResolvedValue(favourite());
+    body.observe([line("user", "so the thing is")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(body.snapshot().actions[0].label).toBe("nod_small");
+    await vi.advanceTimersByTimeAsync(3000);
+    body.observe([line("user", "so the thing is, you know")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(body.snapshot().actions[1].label).toBe("head_tilt");
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "body language head_tilt 0.12 (nod_small on cooldown)",
+    );
+    await vi.advanceTimersByTimeAsync(3000);
+    body.observe([line("user", "so the thing is, you know, right")], false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(motion.execute).toHaveBeenCalledTimes(2);
+    expect(body.snapshot().pulse?.outcome).toContain(
+      "nod_small, head_tilt: cooldown",
+    );
   });
 });
 
