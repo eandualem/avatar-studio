@@ -21,6 +21,16 @@ const action = z.object({
   endedAt: time.optional(),
 });
 const trace = z.object({ actions: z.array(z.unknown()).max(100) });
+const pulse = z.object({
+  calls: z.number().int().nonnegative(),
+  at: time,
+  latencyMs: time,
+  line: z.string().max(200),
+  verdict: z.string().max(300),
+  outcome: z.string().max(200),
+  error: z.string().max(300).optional(),
+});
+const pulses = z.object({ pulses: z.array(z.unknown()).max(60) });
 function duration(start?: number, end?: number) {
   return start !== undefined && end !== undefined && end >= start
     ? end - start
@@ -51,6 +61,19 @@ export function bodyTimingRows(body: unknown) {
           movement: duration(a.startedAt, a.endedAt),
         },
       ];
+    });
+}
+
+/** The expression loop's Jev round trips, newest first; untrusted saved data. */
+export function jevPulseRows(body: unknown) {
+  const parsed = pulses.safeParse(body);
+  if (!parsed.success) return [];
+  return parsed.data.pulses
+    .slice(-12)
+    .reverse()
+    .flatMap((value) => {
+      const p = pulse.safeParse(value);
+      return p.success ? [p.data] : [];
     });
 }
 

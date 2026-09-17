@@ -104,6 +104,17 @@ example. Learned entries live in this browser's local storage
 (`avatar-studio.gesture-library`, last 40) and are offered to Jev from the
 next call on. Nothing is stored server-side.
 
+## Reading a call afterwards
+
+Every Jev round trip is one line in the browser console, prefixed
+`[expression]`: call number, time into the call, latency, the line Jev saw
+(`…` while still being spoken), its answers, and what the controller did
+with them, including why it did nothing. The same rows are in **Body
+timing → Jev decisions** during and after the call and in **Copy Body
+details**, so a report can quote them. The runtime keeps no record of Jev
+calls; the planner's own sessions remain readable at the runtime's
+`/api/sessions` as before.
+
 ## Latency
 
 Jev answered in 330 to 520 ms in probes, about 1 s on the first call of a

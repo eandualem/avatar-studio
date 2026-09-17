@@ -6,6 +6,7 @@ import type {
   BodyRequest,
   BodyTransport,
   BodyView,
+  Pulse,
 } from "./body-controller";
 import { bodyContext, bodyDecision } from "./body-tools";
 import type { ExpressionLine } from "./expression-lines";
@@ -60,15 +61,28 @@ export function expressionQuestions(
       {
         explicit: {
           what: "The user asks Charlie to move, including as a question or a bare verb",
-          examples: ["can you clap?", "wave at me", "look left", "clap", "run!"],
+          examples: [
+            "can you clap?",
+            "wave at me",
+            "look left",
+            "clap",
+            "run!",
+          ],
         },
         incidental: {
           what: "No request, but body language would fit the moment",
-          examples: ["hey Charlie!", "hmm that's a hard one", "that's hilarious"],
+          examples: [
+            "hey Charlie!",
+            "hmm that's a hard one",
+            "that's hilarious",
+          ],
         },
         none: {
           what: "Nothing in the latest user line calls for body movement",
-          examples: ["what is the capital of France?", "tell me about yourself"],
+          examples: [
+            "what is the capital of France?",
+            "tell me about yourself",
+          ],
         },
       },
     ),
@@ -103,7 +117,13 @@ export function expressionQuestions(
       {
         true: {
           what: "Any request to stop, calm or quit the body's current movement",
-          examples: ["stop", "okay okay stop", "hold still", "enough", "can you not clap"],
+          examples: [
+            "stop",
+            "okay okay stop",
+            "hold still",
+            "enough",
+            "can you not clap",
+          ],
         },
         false: {
           what: "No such request",
@@ -145,8 +165,10 @@ export class ExpressionController {
   private moving?: Work;
   private planning?: { work: Work; request: BodyRequest };
   private actions: BodyAction[] = [];
-  private pulse?: BodyView["pulse"];
+  private pulse?: Pulse;
+  private pulses: Pulse[] = [];
   private calls = 0;
+  private opened = performance.now();
   private latest?: { lines: ExpressionLine[]; speaking: boolean };
   private lastKey = "";
   private lastFragmentAt = 0;
@@ -182,6 +204,7 @@ export class ExpressionController {
       still: this.still,
       actions: this.actions,
       pulse: this.pulse,
+      pulses: this.pulses,
     });
   }
   private publish() {
@@ -282,6 +305,15 @@ export class ExpressionController {
         performed_for_latest_user_line: [...this.performed],
       },
     };
+    const last = lines.at(-1);
+    const pulse: Pulse = {
+      calls: ++this.calls,
+      at: Math.round(sentAt - this.opened),
+      latencyMs: 0,
+      line: `${last?.role === "user" ? "user" : "charlie"}: ${last?.text.trim().slice(-80) ?? ""}${complete ? "" : " …"}`,
+      verdict: "",
+      outcome: "",
+    };
     let answers: JevAnswers | undefined;
     try {
       answers = await this.oracle.ask(
@@ -289,29 +321,26 @@ export class ExpressionController {
         expressionQuestions(library),
         abort.signal,
       );
-      this.calls++;
-      this.pulse = {
-        calls: this.calls,
-        latencyMs: performance.now() - sentAt,
-        verdict: summarize(answers),
-      };
+      pulse.verdict = summarize(answers);
     } catch (error) {
-      if (!abort.signal.aborted && !this.closed) {
-        this.calls++;
-        this.pulse = {
-          calls: this.calls,
-          latencyMs: performance.now() - sentAt,
-          verdict: "",
-          error: error instanceof Error ? error.message : "Jev failed",
-        };
-      }
+      if (!abort.signal.aborted && !this.closed)
+        pulse.error = error instanceof Error ? error.message : "Jev failed";
     } finally {
       if (this.inFlight === abort) this.inFlight = undefined;
     }
     if (this.closed || abort.signal.aborted) return;
+    pulse.latencyMs = Math.round(performance.now() - sentAt);
+    pulse.outcome = answers
+      ? this.act(answers, lines, complete, library, { sentAt, utteranceAt })
+      : "no answer";
+    this.pulse = pulse;
+    this.pulses = [...this.pulses, pulse].slice(-60);
+    // The experiment's log: one line per Jev round trip, readable in DevTools
+    // and copied with "Copy Body details".
+    console.info(
+      `[expression] #${pulse.calls} +${pulse.at}ms ${pulse.latencyMs}ms | ${pulse.line} | ${pulse.error ?? pulse.verdict} | ${pulse.outcome}`,
+    );
     this.publish();
-    if (answers)
-      this.act(answers, lines, complete, library, { sentAt, utteranceAt });
     if (this.queued) {
       this.queued = false;
       const wait = Math.max(
@@ -322,13 +351,14 @@ export class ExpressionController {
       this.next = setTimeout(() => this.schedule(this.isComplete()), wait);
     }
   }
+  /** Applies the thresholds; returns what happened, for the trace. */
   private act(
     a: JevAnswers,
     lines: ExpressionLine[],
     complete: boolean,
     library: Gesture[],
     timing: { sentAt: number; utteranceAt: number },
-  ) {
+  ): string {
     const t = this.options.thresholds;
     const latest = lines.at(-1);
     const user = lines.findLast((l) => l.role === "user");
@@ -339,26 +369,37 @@ export class ExpressionController {
     if (fromUser && stop >= t.stop && !this.performed.has("stop")) {
       this.performed.add("stop");
       this.stop("User asked to stop");
-      return;
+      return "stop";
     }
-    if (start < (complete ? t.start : t.startPartial)) return;
+    const threshold = complete ? t.start : t.startPartial;
+    if (start < threshold)
+      return `no start (${start.toFixed(2)} < ${threshold}${complete ? "" : " partial"})`;
     const explicit = fromUser && isExplicit(a.intent, t.explicit);
     const name = a.gesture?.type === "choice" ? a.gesture.choice : "";
     if (name === NOT_IN_LIBRARY) {
-      if (explicit && !this.performed.has("planner")) {
-        this.performed.add("planner");
-        void this.plan(lines, timing);
-      }
-      return;
+      if (!explicit) return "not in library, not explicit";
+      if (this.performed.has("planner"))
+        return "planner already asked for this line";
+      this.performed.add("planner");
+      void this.plan(lines, timing);
+      return "planner asked";
     }
     const entry = library.find((g) => g.name === name);
-    if (!entry || this.performed.has(name)) return;
-    if (this.moving?.action.label === name) return;
+    if (!entry) return `unknown gesture ${name}`;
+    if (this.performed.has(name))
+      return `${name} already performed for this line`;
     if (!explicit) {
-      if (this.still || this.moving?.action.intent === "explicit") return;
+      if (this.still) return `${name} skipped: holding still`;
+      if (this.moving?.action.intent === "explicit")
+        return `${name} skipped: explicit ${this.moving.action.label} running`;
+      if (this.moving?.action.label === name)
+        return `${name} skipped: already running`;
       const last = this.lastPerformedAt.get(name);
-      if (last !== undefined && performance.now() - last < this.options.cooldownMs)
-        return;
+      if (
+        last !== undefined &&
+        performance.now() - last < this.options.cooldownMs
+      )
+        return `${name} skipped: cooldown`;
     }
     this.performed.add(name);
     const action = this.action(
@@ -370,6 +411,7 @@ export class ExpressionController {
     );
     action.toolReturnedAt = performance.now();
     void this.execute(action, shapeGesture(entry, energy));
+    return `${explicit ? "explicit" : "incidental"} ${name}, energy ${energy.toFixed(1)}${this.moving ? " (replaces " + this.moving.action.label + ")" : ""}`;
   }
   private action(
     label: string,
@@ -478,7 +520,11 @@ export class ExpressionController {
     try {
       pending = await this.planner.decide(request, work.abort.signal);
       action.toolReturnedAt = performance.now();
-      if (this.closed || work.abort.signal.aborted || revision !== this.revision) {
+      if (
+        this.closed ||
+        work.abort.signal.aborted ||
+        revision !== this.revision
+      ) {
         if (pending)
           await this.planner.receipt(request, pending, {
             outcome: "failed",
@@ -623,6 +669,7 @@ function summarize(a: JevAnswers) {
   if (a.start?.type === "noul") parts.push(`start ${a.start.noul.toFixed(2)}`);
   if (a.stop?.type === "noul") parts.push(`stop ${a.stop.noul.toFixed(2)}`);
   if (a.intent?.type === "choice") parts.push(a.intent.choice);
-  if (a.energy?.type === "score") parts.push(`energy ${a.energy.score.toFixed(1)}`);
+  if (a.energy?.type === "score")
+    parts.push(`energy ${a.energy.score.toFixed(1)}`);
   return parts.join(" · ");
 }
