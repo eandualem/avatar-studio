@@ -781,6 +781,14 @@ export function normalizeLearned(label: string, motion: Motion): Motion {
 
 /** Learned entries live in this browser only; the seed list never changes. */
 export const LIBRARY_STORAGE_KEY = "avatar-studio.gesture-library";
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((listener) => listener());
+/** Subscribe to learn/forget, for React's useSyncExternalStore. */
+export function subscribeLibrary(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+export const learnedCount = () => learnedGestures().length;
 export function learnedGestures(): Gesture[] {
   try {
     const raw = globalThis.localStorage?.getItem(LIBRARY_STORAGE_KEY);
@@ -816,6 +824,7 @@ export function learnGesture(gesture: Omit<Gesture, "learned">) {
       LIBRARY_STORAGE_KEY,
       JSON.stringify(list.slice(-40)),
     );
+    notify();
     return true;
   } catch {
     return false;
@@ -827,5 +836,6 @@ export function forgetLearned() {
   } catch {
     /* Nothing to forget. */
   }
+  notify();
 }
 export const gestureLibrary = () => [...seedGestures, ...learnedGestures()];
