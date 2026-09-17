@@ -31,6 +31,13 @@ const responseSchema = z.object({
 export const bodyTransport: BodyTransport = {
   async decide(input, signal) {
     signal.throwIfAborted();
+    // The runtime renders host_context into its system prompt and sends these
+    // instructions as the user turn. Smaller models then take the instructions
+    // themselves for the latest utterance and hold, so the utterance is also
+    // quoted here, where the model looks for it.
+    const utterance = input.host_context.view.data.conversation.findLast(
+      (message) => message.role === "user",
+    )?.content;
     // Cancellation invalidates app admission and uses the runtime cancel API.
     // Keep reading the bounded response so a late pending tool can receive a
     // failed receipt instead of leaving its decision session awaiting a result.
@@ -43,7 +50,8 @@ export const bodyTransport: BodyTransport = {
           output_mode: "host_tools",
           content:
             instructions +
-            "\n\nDecide once for the latest user utterance in host_context.view.data.conversation. The accompanying body_state and current_pose are authoritative.",
+            "\n\nDecide once for the latest user utterance in host_context.view.data.conversation. The accompanying body_state and current_pose are authoritative." +
+            (utterance ? `\n\nLatest user utterance: ${JSON.stringify(utterance)}` : ""),
         },
         120000,
       ),

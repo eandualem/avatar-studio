@@ -9,6 +9,56 @@ Use the current host pose, landmarks and action schema. They are more specific
 than these examples. This guide provides starting points, not a fixed gesture
 menu or a promise of optimal timing from every starting pose.
 
+## Rules the validator enforces
+
+A call that breaks one of these is rejected before anything moves, so the user
+sees nothing:
+
+- Every `time` is at least 0.2 and strictly increases within its own array.
+  There is no time 0; the first target of prepare, waypoints and finish is at
+  0.2 or later.
+- Arrays hold only waypoint objects. Never add strings, comments or analysis.
+  Omit `prepare` or `finish` entirely instead of sending an empty array.
+- `intent` and `label` are required on every `move_avatar` call.
+- Two wrists can never share a point. Hands that meet collide and stop; for a
+  clap bring them to `x=+0.075` and `x=-0.075` (0.15 apart), never to 0.
+- The left hand is at positive X and the right hand at negative X in every
+  target, including `finish`. To lower the hands, keep each hand's X from your
+  earlier waypoints and set `y` to 0.455, `z` to 0.02 and `direction` to
+  `[0,-1,0]`. A negative left X or a positive right X crosses an arm through
+  the body and the engine blocks it.
+- `waypoints` is required and holds at least one target. A one-off movement
+  goes in `waypoints`; use `prepare` only to reach the start of a repeated
+  cycle, and never leave `waypoints` empty.
+- `head` always carries both `yaw` and `nod` (0 for the one that does not
+  change); `pelvis` carries `offset` and `yaw`; `torso` carries `bend`, `twist`
+  and `lean`. A nod is `{"head":{"yaw":0,"nod":0.15}}`, then back to `nod:0`.
+- "Clap", "wave", "nod" on their own, and questions such as "can you clap?" or
+  "could you wave?", are explicit movement requests. Perform them; do not hold.
+
+## Clap
+
+Copy this and adjust `repeat` (each cycle is one clap):
+
+```json
+{"intent":"explicit","label":"clap","mode":"animated","interpolation":"swing",
+ "prepare":[{"time":1,
+   "left":{"position":[0.17,0.6,0.2],"direction":[0,1,0],"curls":[0,0,0,0,0]},
+   "right":{"position":[-0.17,0.6,0.2],"direction":[0,1,0],"curls":[0,0,0,0,0]}}],
+ "waypoints":[
+   {"time":0.35,"left":{"position":[0.075,0.6,0.2]},"right":{"position":[-0.075,0.6,0.2]}},
+   {"time":0.7,"left":{"position":[0.17,0.6,0.2]},"right":{"position":[-0.17,0.6,0.2]}}],
+ "repeat":3,
+ "finish":[{"time":1,
+   "left":{"position":[0.17,0.455,0.02],"direction":[0,-1,0],"curls":[0,0.12,0.12,0.12,0.12]},
+   "right":{"position":[-0.17,0.455,0.02],"direction":[0,-1,0],"curls":[0,0.12,0.12,0.12,0.12]}}]}
+```
+
+Keep `mode` at `animated` for a clap: grounded mode slows the arms so the
+hands collide and stop short. Chest height (`y=0.6`) in front of the body
+(`z=0.2`) is where two hands can meet. The raised-hand landmarks at `y=0.83`
+are for waving, not clapping.
+
 For a clear simple request, compose one `move_avatar` call promptly. Current
 pose is already in host context; use `get_pose` only if it is stale or ambiguous.
 Combine intended hand, finger and head changes in the same sequence. Avoid a
@@ -93,10 +143,8 @@ Dev test Reset pose. Receipts count elapsed cycles, not verified successful clap
 
 Tested examples from standing, using `mode:"animated"` and `interpolation:"swing"`:
 
-- Five claps: prepare at 1s with wrists `[±0.17,0.6,0.2]`, directions `[0,1,0]`,
-  curls all zero. Cycle: wrists `[±0.075,0.6,0.2]` at 0.35s and back to
-  `[±0.17,0.6,0.2]` at 0.7s. `repeat:5`; finish with supplied rest_pose at 1s.
-  This is a visible closing/opening gesture with clearance, not simulated impact.
+- Claps: the complete call is in the Clap section above. It is a visible
+  closing/opening gesture with clearance, not simulated impact.
 - Running in place: prepare at 0.8s with pelvis `{offset:[0,-0.025,0],yaw:0}`,
   torso `{bend:0.12,twist:0,lean:0}`, left ankle `[0.105,0.25,0.15]`, right ankle
   `[-0.105,0.095,-0.06]` (both yaw/pitch zero), left wrist `[0.2,0.59,0.02]`,

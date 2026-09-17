@@ -47,6 +47,7 @@ it("requires terminal tool-only decisions and records receipts with no narration
   const calls = fetch.mock.calls as unknown as [string, RequestInit][];
   const request = JSON.parse(calls[0][1].body as string);
   expect(request.output_mode).toBe("host_tools");
+  expect(request.content).toContain('Latest user utterance: "Hello"');
   expect(request.config).toBeUndefined();
   expect(
     request.host_context.actions.map((a: { name: string }) => a.name),
