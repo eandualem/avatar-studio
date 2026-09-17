@@ -17,6 +17,12 @@ TypeScript.
 
 ![The studio: Charlie, the conversation, and the Talk live and Body model controls](public/screenshot.jpg)
 
+> **Experiment branch.** `experiment/jev-body` tries a different strategy
+> for the live body: TypeSafe's Jev decision model chooses continuously from
+> a library of authored movements, and the number-writing planner only
+> composes what the library lacks, growing it. `main` keeps the original
+> design. See [docs/expression.md](docs/expression.md).
+
 ## What it demonstrates
 
 - **Host tools with numbers, not names.** The assistant has three tools the
@@ -26,12 +32,16 @@ TypeScript.
   runs it through an IK solver with joint limits, collision and support
   checks, and returns a receipt with the actual pose and whatever
   constrained it. See [docs/motion.md](docs/motion.md).
-- **Two model roles in parallel.** *Talk live* puts GPT-Live on the
-  conversation over WebRTC. A separate body controller receives each
-  utterance and answers with exactly one tool call on the model you pick in
-  the header. Speech never waits for planning; the app owns admission,
-  cancellation and the quiet facts that tell the voice when movement really
-  started. See [docs/voice.md](docs/voice.md).
+- **A decision model on the live body.** *Talk live* puts GPT-Live on the
+  conversation over WebRTC. On every transcript change, yours or Charlie's,
+  one Jev call answers five typed questions in under half a second: is this
+  a movement request, start something now, which library entry, stop, how
+  much energy. Code admits at most one movement, and a request the library
+  cannot serve goes to the planner on the model you pick in the header; its
+  plan is learned into the library. Speech never waits for the body; the
+  app owns admission, cancellation and the quiet facts that tell the voice
+  when movement really started. See [docs/expression.md](docs/expression.md)
+  and [docs/voice.md](docs/voice.md).
 - **Host context.** Every request carries the actual pose, the coordinate
   system and the tool schemas, so the model composes from what is true now.
 - **Continuations and cancellation.** A tool call pauses the assistant's
@@ -86,7 +96,8 @@ Open <http://127.0.0.1:7140>. Type *"Wave at me"* and Charlie waves; ask
 do if it is not reachable, has no `avatar_studio` profile registered, or is
 older than 0.2.0 (registered profiles and per-call Live instructions). It
 never starts or stops the runtime. The studio talks to
-`http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere, and
+`http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere,
+`TYPESAFE_API_KEY` there enables the Jev expression loop during calls, and
 `.env.example` lists the other server-side settings (which model plans text
 and which plans movement). Conversations are kept in your browser; the
 runtime's memory of them lasts as long as the runtime process unless you
@@ -124,14 +135,16 @@ functions and clients.
 | `machines/` | `appMachine` (root), `avatarMachine`, `conversationMachine`, `speechMachine`, `voiceMachine` |
 | `hooks/` | `useStudio`, the bridge between machines and components |
 | `components/` | `Studio`, `MotionLab` (the Dev panel), the Body model control, timing rows |
-| `lib/` | the renderer, the IK adapter and collision checks (`body/`), interpolation, host tools, the runtime and voice clients, the body controller |
+| `lib/` | the renderer, the IK adapter and collision checks (`body/`), interpolation, host tools, the runtime, voice and Jev clients, the expression controller and the gesture library |
 | `types/` | Zod schemas for every wire shape |
 | `profiles/` | the assistant profile, the two prompts and the movement skill |
 | `blender/` | the Python that builds and rigs Charlie; `rigged.blend` is the source of the GLB |
 
-The interesting files are `lib/body-controller.ts`, where utterances become
-admitted, cancelled or superseded movements, and `lib/motion.ts`, where a
-plan becomes per-frame joint targets under rate limits.
+The interesting files are `lib/expression-controller.ts`, where Jev's
+answers become admitted, cancelled or superseded movements,
+`lib/gesture-library.ts`, the authored movements Jev chooses from, and
+`lib/motion.ts`, where a plan becomes per-frame joint targets under rate
+limits.
 [docs/architecture.md](docs/architecture.md) is the map;
 [blender/README.md](blender/README.md) rebuilds the character.
 

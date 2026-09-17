@@ -344,6 +344,13 @@ function Workspace() {
               {voice.data.view?.work && (
                 <p className="live-work">{voice.data.view.work}</p>
               )}
+              {voice.data.view?.body.pulse && (
+                <p className="live-work" aria-label="Latest Jev decision">
+                  {voice.data.view.body.pulse.error
+                    ? `Jev · ${voice.data.view.body.pulse.error}`
+                    : `Jev · ${Math.round(voice.data.view.body.pulse.latencyMs)} ms · ${voice.data.view.body.pulse.verdict}`}
+                </p>
+              )}
               <div className="live-buttons">
                 <button
                   type="button"

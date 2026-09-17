@@ -47,6 +47,13 @@ export type BodyView = {
   active?: BodyAction;
   still: boolean;
   actions: BodyAction[];
+  /** The expression loop's latest Jev round trip, when that loop is in use. */
+  pulse?: {
+    calls: number;
+    latencyMs: number;
+    verdict: string;
+    error?: string;
+  };
 };
 
 // One controller owns one Live call. Decisions are event-driven; the engine alone

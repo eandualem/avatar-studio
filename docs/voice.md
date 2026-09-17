@@ -15,25 +15,30 @@ a model that is busy talking. So:
   `profiles/live-instructions.md`, sent with each call. It calls no tools and
   delegates nothing; the runtime creates the call in `mode: "conversation"`,
   which refuses delegation on its side too.
-- **The body controller moves.** Each user utterance goes, after 0.9 s of
-  quiet, to an ordinary chat request on a fresh runtime session with
+- **The expression controller moves.** Every transcript fragment, from the
+  user or from Charlie's own speech, becomes one Jev call that answers five
+  typed questions at once ([expression.md](expression.md)). A chosen library
+  entry runs at once; there is no quiet period. When Jev finds nothing in
+  the library for an explicit request, the planner is asked as on `main`: an
+  ordinary chat request on a fresh runtime session with
   `output_mode: "host_tools"`, the prompt `profiles/body-instructions.md`, the
-  conversation so far and the actual pose. The model answers with exactly one
-  tool call: `move_avatar` (timed waypoints), `hold_avatar` (no change) or
-  `stop_avatar`. It never writes prose; prose is treated as a failure.
-- **The app executes.** `lib/body-controller.ts` owns revisions, admission,
-  exclusive execution, priority (an explicit request outranks an incidental
-  gesture) and cancellation. A newer utterance invalidates a decision still in
-  flight; the last check happens immediately before the engine starts.
+  conversation so far and the actual pose, answered with exactly one tool
+  call: `move_avatar`, `hold_avatar` or `stop_avatar`. Prose is a failure.
+  A completed plan is learned into the library.
+- **The app executes.** `lib/expression-controller.ts` owns revisions,
+  admission, exclusive execution, priority (an explicit request outranks an
+  incidental gesture, stillness outranks incidental gestures) and
+  cancellation. A newer user line invalidates a plan still in flight; the
+  last check happens immediately before the engine starts.
 - **Facts flow back quietly.** When the engine actually starts, completes,
   cancels or fails an explicit action, the app appends one short factual line
   to Live over the data channel (`session.thinking.append`, not user speech),
   so Live can say "I'm waving now" only once it is true. The persona forbids
   claiming movement without such a fact.
 
-The model that plans movement is chosen in the header (**Body model**). The
-choice travels as `config.default_model` on each decision, so text chat keeps
-its own model on the same runtime.
+The model that plans a movement the library lacks is chosen in the header
+(**Body model**). The choice travels as `config.default_model` on each
+planner decision, so text chat keeps its own model on the same runtime.
 
 ## Setup
 
@@ -88,7 +93,8 @@ The numbers that matter, from real calls in September 2026:
 | Stage | Measured |
 |---|---|
 | Transcription + spoken reply | under 0.5 s each |
-| Quiet period before a decision | 0.9 s, fixed |
+| Quiet period before a decision | none; Jev answers each fragment, and a settled line is asked once more after 0.8 s |
+| Jev decision, library movement | 0.33–0.52 s per call in probes, about 1 s on the first call |
 | Body planning, `openai:gpt-6-astra` | 6.8–11 s for a ~200-token plan (≈50 tok/s, 2.7 s to first token) |
 | Body planning, `cerebras:qwen-3.8-27b` | 2.1–3.9 s, valid `move_avatar` each time |
 | Body planning, `cerebras:gpt-oss-120b` | 2.3–5.5 s, tends to `hold` on a plain wave |
