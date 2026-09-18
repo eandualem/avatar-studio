@@ -84,3 +84,21 @@ describe("Body timing from saved engine evidence", () => {
     });
   });
 });
+
+it("lists Jev round trips newest first and drops rows a saved trace cannot vouch for", async () => {
+  const { jevPulseRows } = await import("@/lib/body-timing");
+  const pulse = (calls: number) => ({
+    calls,
+    at: calls * 1000,
+    latencyMs: 400,
+    line: "user: hi",
+    verdict: "wave 0.7",
+    outcome: "incidental wave",
+  });
+  expect(
+    jevPulseRows({ pulses: [pulse(1), { calls: "x" }, pulse(2)] }).map(
+      (p) => p.calls,
+    ),
+  ).toEqual([2, 1]);
+  expect(jevPulseRows({ actions: [] })).toEqual([]);
+});

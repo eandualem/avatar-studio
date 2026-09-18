@@ -6,8 +6,9 @@ routes forward to the runtime and hold every server-side setting. No
 provider key ever reaches the browser.
 
 ```
-browser ──HTTP──▶ app/api/runtime/*   ──▶  POST /api/chat, /cancel     (text, body decisions)
+browser ──HTTP──▶ app/api/runtime/*   ──▶  POST /api/chat, /cancel     (text, planner decisions)
         ──HTTP/SSE─▶ app/api/voice/*  ──▶  /api/voice/calls/*          (GPT-Live calls)
+        ──HTTP──▶ app/api/jev         ──▶  /api/decisions                (Jev, expression decisions; the runtime holds the key)
         ◀─WebRTC audio + data channel────  OpenAI GPT-Live (negotiated through the runtime)
 ```
 
@@ -22,7 +23,8 @@ hooks/        useStudio: the bridge, returns { state, data, actions }
 machines/     XState v5: appMachine (root), avatarMachine, conversationMachine,
               speechMachine, voiceMachine
 lib/          pure functions and clients: renderer, IK, interpolation, host
-              tools, runtime and voice clients, body controller, storage
+              tools, runtime, voice and Jev clients, the expression
+              controller and gesture library, storage
 types/        Zod schemas for every wire shape
 profiles/     the assistant profile, the two prompts and the movement skill
 ```
@@ -31,8 +33,8 @@ profiles/     the assistant profile, the two prompts and the movement skill
 `conversationMachine` runs a typed turn: send, stream the reply, pause on a
 pending host action, execute it, resume with the receipt. `speechMachine`
 holds the browser's SpeechRecognition dictation into the composer.
-`voiceMachine` owns a live call and the body controller beside it
-([voice.md](voice.md)).
+`voiceMachine` owns a live call and the expression controller beside it
+([voice.md](voice.md), [expression.md](expression.md)).
 
 ## Three ways the model moves Charlie
 
@@ -45,9 +47,10 @@ All three end in the same validator and the same per-frame solver
    action; the app validates it, runs it to completion, and resumes the same
    assistant message with a receipt. Duplicate call IDs reuse their receipt;
    a turn allows 12 executions; invalid calls return a failed result.
-2. **Live call.** GPT-Live only talks. A separate body controller decides
-   one tool call per utterance on its own runtime session, and the app
-   admits, runs, cancels and reports it.
+2. **Live call.** GPT-Live only talks. On every transcript change Jev
+   picks a library movement, or none, or a stop; a request the library
+   cannot serve becomes one planner tool call on its own runtime session
+   whose plan is learned. The app admits, runs, cancels and reports it.
 3. **Dev panel.** Hand-edited `move_avatar` JSON through the same path, with
    no model.
 

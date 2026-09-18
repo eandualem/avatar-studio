@@ -8,10 +8,11 @@ import {
   type VoiceFragment,
   type VoiceView,
 } from "@/types/voice";
-import { BodyController } from "./body-controller";
 import { bodyTransport } from "./body-runtime";
+import { ExpressionController } from "./expression-controller";
+import { expressionLines } from "./expression-lines";
+import { jevOracle } from "./jev";
 import { LiveBodyFacts } from "./live-body-facts";
-import { bodyMessages } from "./body-transcript";
 import { conversationWindow } from "./conversation-window";
 import { observeVoiceEvents, voiceRequest, VoiceHttpError } from "./voice-http";
 import { liveMessages } from "./voice-transcript";
@@ -35,7 +36,7 @@ export class VoiceClient {
   private ending = false;
   private policyReady = false;
   private disposed = false;
-  private body: BodyController;
+  private body: ExpressionController;
   private facts?: LiveBodyFacts;
   private fragments: VoiceFragment[] = [];
   private eventCursor = 0;
@@ -50,8 +51,11 @@ export class VoiceClient {
     private history: Message[] = [],
     initialStill = false,
   ) {
-    this.body = new BodyController(
+    // Jev answers on every transcript change; the planner is only asked for a
+    // movement the library lacks. Both go through this one controller.
+    this.body = new ExpressionController(
       controller,
+      jevOracle,
       bodyTransport,
       (body) => {
         this.update({
@@ -65,8 +69,7 @@ export class VoiceClient {
       },
       (action) => this.facts?.send(action),
       (warning) => this.update({ warning }),
-      900,
-      initialStill,
+      { initialStill },
     );
   }
   snapshot = () => structuredClone(this.view);
@@ -256,9 +259,7 @@ export class VoiceClient {
       );
       this.update({ facts: [...facts, receipt].slice(-100) });
     });
-    this.body.reconcile(
-      bodyMessages(this.callId, this.fragments, this.history),
-    );
+    this.body.reconcile(expressionLines(this.callId, this.fragments));
     for (const track of media.getAudioTracks())
       track.enabled = !this.view.micMuted;
     this.audio.muted = false;
@@ -368,14 +369,11 @@ export class VoiceClient {
     if (event === "transcript") {
       this.fragments.push(fragmentSchema.parse(data));
       this.transcript();
-      if (
-        this.policyReady &&
-        !this.ending &&
-        !this.view.remoteClosed &&
-        data.role === "user"
-      )
+      // Both roles: Charlie reacts to what he is saying as well as to the user.
+      if (this.policyReady && !this.ending && !this.view.remoteClosed)
         this.body.observe(
-          bodyMessages(this.callId, this.fragments, this.history),
+          expressionLines(this.callId, this.fragments),
+          this.view.speaking,
         );
     } else if (event === "snapshot") {
       this.fragments = Array.isArray(data.transcript)
@@ -383,9 +381,7 @@ export class VoiceClient {
         : [];
       this.transcript();
       this.applyStatus(data);
-      this.body.reconcile(
-        bodyMessages(this.callId, this.fragments, this.history),
-      );
+      this.body.reconcile(expressionLines(this.callId, this.fragments));
       // Backend/delegation events have no execution or visible text route.
     } else if (event === "status") this.applyStatus(data);
     else if (event === "usage")

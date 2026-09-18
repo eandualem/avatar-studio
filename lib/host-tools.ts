@@ -65,7 +65,13 @@ const sequence = {
     additionalProperties: false,
     required: ["time"],
     properties: {
-      time: { type: "number", minimum: 0.2, maximum: 20 },
+      time: {
+        type: "number",
+        minimum: 0.2,
+        maximum: 20,
+        description:
+          "Seconds from the start of this sequence, at least 0.2 and strictly increasing; there is no time 0.",
+      },
       left: hand,
       right: hand,
       leftFoot: foot,
@@ -132,12 +138,13 @@ export const actions = [
       properties: {
         prepare: {
           ...sequence,
-          description: "One-time preparation; its times start at zero.",
+          description:
+            "One-time preparation before the cycles; its clock starts at zero, so its first time is 0.2 or later.",
         },
         waypoints: {
           ...sequence,
           description:
-            "One cycle, times start at zero. Omitted channels resolve once from preparation and hold across repeats.",
+            "One cycle; its clock starts at zero, so its first time is 0.2 or later. Omitted channels resolve once from preparation and hold across repeats.",
         },
         repeat: {
           type: "integer",
@@ -149,7 +156,7 @@ export const actions = [
         finish: {
           ...sequence,
           description:
-            "One-time ending after all cycles; times start at zero. Use to return to standing.",
+            "One-time ending after all cycles; its clock starts at zero, so its first time is 0.2 or later. Use to return to standing.",
         },
         mode: {
           type: "string",

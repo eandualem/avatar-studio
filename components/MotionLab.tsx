@@ -1,9 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { Play, Square, Copy, RotateCcw } from "lucide-react";
 import { useMotionLab } from "@/hooks/useStudio";
 import { motionExamples, previewMotion } from "@/lib/motion-lab";
+import {
+  forgetLearned,
+  learnedCount,
+  subscribeLibrary,
+} from "@/lib/gesture-library";
 import { actions } from "@/lib/host-tools";
 import type { MotionResult } from "@/types/avatar";
 
@@ -34,6 +39,8 @@ function fieldLabel(path: string[]) {
 
 export function MotionLab({ ready }: { ready: boolean }) {
   const lab = useMotionLab();
+  // Local storage is browser-only; the server renders none so hydration matches.
+  const learned = useSyncExternalStore(subscribeLibrary, learnedCount, () => 0);
   const [source, setSource] = useState(
     JSON.stringify(motionExamples[0].motion, null, 2),
   );
@@ -106,6 +113,18 @@ export function MotionLab({ ready }: { ready: boolean }) {
         </select>
       </label>
       <p className="lab-hint">{motionExamples[example].hint}</p>
+      <p className="lab-hint">
+        Learned movements in this browser: {learned}.{" "}
+        <button
+          type="button"
+          onClick={() => {
+            forgetLearned();
+            setCopyStatus("Learned movements forgotten");
+          }}
+        >
+          Forget learned movements
+        </button>
+      </p>
       <div className="lab-coordinates">
         Height = 1 · X: Charlie’s left · Y: up · Z: toward you.
         <br />

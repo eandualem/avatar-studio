@@ -3,9 +3,11 @@
 Avatar Studio is a voice assistant with a body. Charlie, a 3D robot, stands
 on the left of the screen; you talk to him, type to him, or dictate, and he
 answers in speech or text while moving: a wave with a greeting, a
-thoughtful lean on a hard question, a run in place if you ask for one. No
-animation clips are played. A model writes where his hands, feet, torso and
-head should be and when, and the browser solves the joints every frame.
+thoughtful lean on a hard question, a run in place if you ask for one. His
+movements are plans a model wrote: where his hands, feet, torso and head
+should be and when, solved into joints by the browser every frame. During a
+call a decision model picks the plan that fits while you are still
+speaking, and a planner composes anything the library lacks and adds it.
 
 It exists to demonstrate
 [assistant-runtime](https://pypi.org/project/assistant-runtime/), an
@@ -26,12 +28,17 @@ TypeScript.
   runs it through an IK solver with joint limits, collision and support
   checks, and returns a receipt with the actual pose and whatever
   constrained it. See [docs/motion.md](docs/motion.md).
-- **Two model roles in parallel.** *Talk live* puts GPT-Live on the
-  conversation over WebRTC. A separate body controller receives each
-  utterance and answers with exactly one tool call on the model you pick in
-  the header. Speech never waits for planning; the app owns admission,
-  cancellation and the quiet facts that tell the voice when movement really
-  started. See [docs/voice.md](docs/voice.md).
+- **A decision model on the live body.** *Talk live* puts GPT-Live on the
+  conversation over WebRTC. On every transcript change, yours or Charlie's,
+  one Jev call answers eight typed questions in under half a second: is
+  this a movement request, start something now, which library entry, is it
+  really covered, stop, how much energy, for how long, and what body
+  language fits. Code admits at most one movement, and a request the library
+  cannot serve goes to the planner on the model you pick in the header; its
+  plan is learned into the library. Speech never waits for the body; the
+  app owns admission, cancellation and the quiet facts that tell the voice
+  when movement really started. See [docs/expression.md](docs/expression.md)
+  and [docs/voice.md](docs/voice.md).
 - **Host context.** Every request carries the actual pose, the coordinate
   system and the tool schemas, so the model composes from what is true now.
 - **Continuations and cancellation.** A tool call pauses the assistant's
@@ -57,10 +64,11 @@ studio.
 **Terminal 1, the runtime:**
 
 ```bash
-uv tool install 'assistant-runtime[voice]==0.2.0'   # or: pip install 'assistant-runtime[voice]==0.2.0'
+uv tool install 'assistant-runtime[voice]==0.3.0'   # or: pip install 'assistant-runtime[voice]==0.3.0'
 
 export OPENAI_API_KEY=sk-...                  # the runtime also reads a .env in the directory you run it in
 export VOICE__ENABLED=true                    # GPT-Live audio; bills connected time
+export TYPESAFE_API_KEY=...                   # Jev, the decision model that moves Charlie during calls
 
 # register this app's profile, the prompt artifacts that make the runtime Charlie.
 # The path must be absolute; `echo "$PWD/profiles/avatar-studio.toml"` in this
@@ -84,11 +92,12 @@ Open <http://127.0.0.1:7140>. Type *"Wave at me"* and Charlie waves; ask
 
 `make dev` checks the runtime first and exits with one line saying what to
 do if it is not reachable, has no `avatar_studio` profile registered, or is
-older than 0.2.0 (registered profiles and per-call Live instructions). It
-never starts or stops the runtime. The studio talks to
+older than 0.3.0 (registered profiles, per-call Live instructions, typed
+decisions). It never starts or stops the runtime. The studio talks to
 `http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere, and
 `.env.example` lists the other server-side settings (which model plans text
-and which plans movement). Conversations are kept in your browser; the
+and which plans movement). The TypeSafe key is the runtime's; without it a
+call still connects, but Charlie's body stays idle during it. Conversations are kept in your browser; the
 runtime's memory of them lasts as long as the runtime process unless you
 give it Postgres.
 
@@ -124,14 +133,16 @@ functions and clients.
 | `machines/` | `appMachine` (root), `avatarMachine`, `conversationMachine`, `speechMachine`, `voiceMachine` |
 | `hooks/` | `useStudio`, the bridge between machines and components |
 | `components/` | `Studio`, `MotionLab` (the Dev panel), the Body model control, timing rows |
-| `lib/` | the renderer, the IK adapter and collision checks (`body/`), interpolation, host tools, the runtime and voice clients, the body controller |
+| `lib/` | the renderer, the IK adapter and collision checks (`body/`), interpolation, host tools, the runtime, voice and Jev clients, the expression controller and the gesture library |
 | `types/` | Zod schemas for every wire shape |
 | `profiles/` | the assistant profile, the two prompts and the movement skill |
 | `blender/` | the Python that builds and rigs Charlie; `rigged.blend` is the source of the GLB |
 
-The interesting files are `lib/body-controller.ts`, where utterances become
-admitted, cancelled or superseded movements, and `lib/motion.ts`, where a
-plan becomes per-frame joint targets under rate limits.
+The interesting files are `lib/expression-controller.ts`, where Jev's
+answers become admitted, cancelled or superseded movements,
+`lib/gesture-library.ts`, the authored movements Jev chooses from, and
+`lib/motion.ts`, where a plan becomes per-frame joint targets under rate
+limits.
 [docs/architecture.md](docs/architecture.md) is the map;
 [blender/README.md](blender/README.md) rebuilds the character.
 

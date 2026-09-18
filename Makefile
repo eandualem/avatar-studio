@@ -1,7 +1,7 @@
 # Avatar Studio: one Next.js app (7140) talking to an assistant-runtime (7100)
 # that the operator starts separately.
 SHELL := /bin/bash
-.PHONY: help install dev preflight test typecheck lint build check
+.PHONY: help install dev preflight test typecheck lint build check probe-jev
 
 help: ## List targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -28,3 +28,6 @@ build: ## Production build
 	bun run build
 
 check: test typecheck lint build ## Everything CI would run
+
+probe-jev: ## Ask Jev the live expression questions for sample lines through the runtime (it needs TYPESAFE_API_KEY)
+	bun scripts/probe-jev.ts $(LINES)
