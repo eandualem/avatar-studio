@@ -65,14 +65,16 @@ Conventions worth knowing before you edit:
 This repository never modifies the runtime. It consumes its public
 contracts: `POST /api/chat` with `host_context` and host-tool
 continuations, `output_mode: "host_tools"` for tool-only decisions, the
-voice routes under `/api/voice`, and the profile TOML in `profiles/`.
+voice routes under `/api/voice`, `POST /api/decisions` for Jev's typed
+decisions, and the profile TOML in `profiles/`.
 `assistant-runtime docs` lists the runtime's pages; its source is at
 <https://github.com/eandualem/assistant-runtime>.
 
-Jev is not a chat model and does not go through the runtime. The app calls
-TypeSafe directly from `app/api/jev/route.ts` with a server-side key
-(`TYPESAFE_API_KEY`), the one provider credential this app holds itself.
-Text chat, the planner and Live stay on the runtime.
+Jev is not a chat model, so the runtime exposes it as a decision
+capability rather than a provider: `POST /api/decisions` takes a state and
+typed questions and returns typed answers, with the TypeSafe key held by
+the runtime. `app/api/jev/route.ts` forwards the state and questions with
+the profile and holds no credential.
 
 Everything app-specific is sent per request from the server routes in
 `app/api/` (`lib/runtime-config.ts`): the registered profile, the text and

@@ -19,9 +19,7 @@ const questions = {
   energy: score("How much?", ["still", "lively"]),
 };
 
-it("the route keeps the key server-side, forwards state and questions, and refuses without a key", async () => {
-  expect((await POST(request({ state: "hi", questions }))).status).toBe(503);
-  vi.stubEnv("TYPESAFE_API_KEY", "secret");
+it("the route forwards state and questions with the profile to the runtime's decisions and passes its answer through", async () => {
   const fetch = vi.fn(async () =>
     Response.json({ answers: { start: { type: "noul", noul: 0.9 } } }),
   );
@@ -29,11 +27,16 @@ it("the route keeps the key server-side, forwards state and questions, and refus
   const response = await POST(request({ state: { a: 1 }, questions }));
   expect(response.status).toBe(200);
   const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-  expect(url).toBe("https://api.typesafe.ai/v1/systemone");
-  expect((init.headers as Record<string, string>).Authorization).toBe("Bearer secret");
-  expect(JSON.parse(init.body as string)).toEqual({ model: "jev-latest", state: { a: 1 }, questions });
+  expect(url).toBe("http://127.0.0.1:7100/api/decisions");
+  expect(JSON.parse(init.body as string)).toEqual({ state: { a: 1 }, questions, profile: "avatar_studio" });
   expect((await POST(request({ state: "x", questions: {} }))).status).toBe(400);
   expect((await POST(request({ state: "x", questions }, "http://evil.test"))).status).toBe(403);
+  fetch.mockResolvedValueOnce(
+    Response.json({ detail: "Decisions need TYPESAFE_API_KEY on the runtime; no fallback is used" }, { status: 503 }),
+  );
+  const refused = await POST(request({ state: "x", questions }));
+  expect(refused.status).toBe(503);
+  expect(await refused.json()).toMatchObject({ detail: expect.stringContaining("TYPESAFE_API_KEY on the runtime") });
   fetch.mockRejectedValueOnce(new Error("timeout"));
   expect((await POST(request({ state: "x", questions }))).status).toBe(503);
 });
@@ -48,6 +51,7 @@ it("the client validates answers and surfaces the route's detail on failure", as
         energy: { type: "score", score: 0.7, confidence: 0.5, probabilities: { "0": 0.3, "1": 0.7 }, legend: { "0": "still", "1": "lively" } },
       },
       usage: { input_tokens: 300, output_tokens: 0 },
+      timing: { total_ms: 356, provider_ms: 349 },
     }),
   );
   vi.stubGlobal("fetch", fetch);

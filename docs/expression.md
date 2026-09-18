@@ -194,6 +194,7 @@ any more; the settle re-ask is a second chance, not a wait.
   decision task; the library and the planner own the numbers.
 - Rhythm lives in the library entries. Jev decides to start and to stop.
 - Facial expression is unchanged: the mouth follows audio amplitude.
-- The key is server-side (`TYPESAFE_API_KEY` in `.env.local`, used only by
-  `app/api/jev/route.ts`). Without it a call still connects, but the body
-  stays idle and the Jev line under the call status says why.
+- The key is the runtime's (`TYPESAFE_API_KEY` in its environment;
+  `assistant-runtime` 0.3.0 exposes Jev as `POST /api/decisions`, which
+  `app/api/jev/route.ts` forwards to). Without it a call still connects,
+  but the body stays idle and the Jev line under the call status says why.

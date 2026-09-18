@@ -29,5 +29,5 @@ build: ## Production build
 
 check: test typecheck lint build ## Everything CI would run
 
-probe-jev: ## Ask Jev the live expression questions for sample lines (needs TYPESAFE_API_KEY in .env.local)
+probe-jev: ## Ask Jev the live expression questions for sample lines through the runtime (it needs TYPESAFE_API_KEY)
 	bun scripts/probe-jev.ts $(LINES)

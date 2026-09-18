@@ -4,6 +4,8 @@ import { z } from "zod";
  * TypeSafe's System One API (Jev). A request is one state plus typed
  * questions; every answer is a value from the question's own closed set with
  * its probability, never free text. https://docs.typesafe.ai/api
+ * The app reaches it through the runtime's POST /api/decisions, which keeps
+ * these shapes and adds `timing`.
  */
 const criteriaEntry = z.union([
   z.string(),
@@ -61,6 +63,11 @@ export const jevResponseSchema = z.object({
   answers: z.record(jevAnswerSchema),
   usage: z
     .object({ input_tokens: z.number(), output_tokens: z.number() })
+    .partial()
+    .optional(),
+  /** Added by the runtime: its own round trip and the provider's share. */
+  timing: z
+    .object({ total_ms: z.number(), provider_ms: z.number() })
     .partial()
     .optional(),
 });

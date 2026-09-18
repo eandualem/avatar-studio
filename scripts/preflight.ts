@@ -114,6 +114,15 @@ export async function preflight(
         continue;
       }
     }
+    // The expression loop asks the runtime's decisions on every transcript
+    // fragment; without them Charlie's body stays idle during a call.
+    let decisions = "not checked";
+    if (roles.includes("text")) {
+      const status = await probe(fetcher, `${url}/api/decisions/status`);
+      if (status.kind !== "ok") decisions = `unavailable (${status.detail})`;
+      else if (status.body.configured !== true) decisions = "not configured";
+      else decisions = "configured";
+    }
     let voice = "not checked";
     if (roles.includes("voice")) {
       const status = await probe(fetcher, `${url}/api/voice/status`);
@@ -126,8 +135,16 @@ export async function preflight(
       else voice = "enabled";
     }
     lines.push(
-      `${prefix}runtime ${url}: ${primaryModel(health.body)}, voice ${voice}`,
+      `${prefix}runtime ${url}: ${primaryModel(health.body)}, voice ${voice}, decisions ${decisions}`,
     );
+    if (decisions === "not configured")
+      lines.push(
+        "Charlie's body will stay idle during Talk live until assistant-runtime has TYPESAFE_API_KEY (typed decisions).",
+      );
+    else if (decisions.startsWith("unavailable"))
+      lines.push(
+        "Charlie's body will stay idle during Talk live: update assistant-runtime to 0.3.0 (typed decisions).",
+      );
     // Voice is optional: text and body work without it, Talk live is refused.
     if (voice === "disabled")
       lines.push(

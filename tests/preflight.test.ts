@@ -25,6 +25,7 @@ const profiles = (...available: string[]) => ({
   body: { available_profiles: available },
 });
 const registered = profiles("design_studio", "avatar_studio");
+const decisions = { status: 200, body: { configured: true } };
 
 describe("preflight", () => {
   it("fails with a start hint when the runtime is unreachable", async () => {
@@ -77,6 +78,7 @@ describe("preflight", () => {
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
         "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": decisions,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
           body: { enabled: false, configured: true },
@@ -85,7 +87,7 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice disabled",
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice disabled, decisions configured",
       "Talk live will be refused until assistant-runtime is started with voice enabled (VOICE__ENABLED).",
     ]);
   });
@@ -96,6 +98,7 @@ describe("preflight", () => {
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
         "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": decisions,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
           body: {
@@ -108,7 +111,42 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled",
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, decisions configured",
+    ]);
+  });
+
+  it("starts, but says the body will be idle, when decisions are not configured or not served", async () => {
+    const voice = {
+      status: 200,
+      body: { enabled: true, configured: true, call_instructions_supported: true },
+    };
+    const unconfigured = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": { status: 200, body: { configured: false } },
+        "http://127.0.0.1:7100/api/voice/status": voice,
+      }),
+    );
+    expect(unconfigured.ok).toBe(true);
+    expect(unconfigured.lines).toEqual([
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, decisions not configured",
+      "Charlie's body will stay idle during Talk live until assistant-runtime has TYPESAFE_API_KEY (typed decisions).",
+    ]);
+    const old = await preflight(
+      env,
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": { status: 404 },
+        "http://127.0.0.1:7100/api/voice/status": voice,
+      }),
+    );
+    expect(old.ok).toBe(true);
+    expect(old.lines).toEqual([
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, decisions unavailable (HTTP 404)",
+      "Charlie's body will stay idle during Talk live: update assistant-runtime to 0.3.0 (typed decisions).",
     ]);
   });
 
@@ -118,12 +156,13 @@ describe("preflight", () => {
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
         "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": decisions,
         "http://127.0.0.1:7115/health": new Error("ECONNREFUSED"),
       }),
     );
     expect(result.ok).toBe(false);
     expect(result.lines[0]).toBe(
-      "text/body: runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice not checked",
+      "text/body: runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice not checked, decisions configured",
     );
     expect(result.lines[1]).toContain(
       "voice: assistant-runtime is not reachable at http://127.0.0.1:7115",
@@ -165,6 +204,7 @@ describe("preflight", () => {
       fetcher({
         "http://127.0.0.1:7100/health": healthy,
         "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/decisions/status": decisions,
         "http://127.0.0.1:7100/api/voice/status": {
           status: 200,
           body: { enabled: true, configured: true },
@@ -173,7 +213,7 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, but without per-call instructions",
+      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, but without per-call instructions, decisions configured",
       "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
     ]);
   });

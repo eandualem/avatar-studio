@@ -1,41 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sameOrigin } from "@/lib/request-origin";
+import { APP_PROFILE, runtimeUrl } from "@/lib/runtime-config";
 import { jevRequestSchema } from "@/types/jev";
 
 /**
- * The one place the TypeSafe key is used. The browser sends a state and typed
- * questions; this forwards them to Jev and returns its answers unchanged.
- * Jev is not a chat model, so it does not go through assistant-runtime.
+ * The browser sends a state and typed questions; this forwards them, with the
+ * app's profile, to the runtime's decision capability (POST /api/decisions)
+ * and returns its answers and errors unchanged. The runtime holds the
+ * TypeSafe key; Jev is not a chat model, so it is a capability, not a provider.
  */
 export const dynamic = "force-dynamic";
-const JEV_URL = "https://api.typesafe.ai/v1/systemone";
-const DEFAULT_JEV_MODEL = "jev-latest";
 
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request))
     return NextResponse.json({ detail: "Origin not allowed" }, { status: 403 });
-  const key = process.env.TYPESAFE_API_KEY;
-  if (!key)
-    return NextResponse.json(
-      {
-        detail:
-          "Jev needs TYPESAFE_API_KEY in .env.local. Charlie's expression loop is off until it is set.",
-      },
-      { status: 503 },
-    );
   try {
     const body = jevRequestSchema.parse(await request.json());
-    const response = await fetch(process.env.JEV_URL || JEV_URL, {
+    const response = await fetch(`${runtimeUrl("text")}/api/decisions`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.JEV_MODEL || DEFAULT_JEV_MODEL,
-        ...body,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, profile: APP_PROFILE }),
       signal: AbortSignal.timeout(10000),
     });
     return new NextResponse(await response.text(), {
@@ -46,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError || error instanceof SyntaxError)
       return NextResponse.json({ detail: "Invalid request" }, { status: 400 });
     return NextResponse.json(
-      { detail: "Jev did not answer in time." },
+      { detail: "The assistant runtime did not answer the decision in time." },
       { status: 503 },
     );
   }

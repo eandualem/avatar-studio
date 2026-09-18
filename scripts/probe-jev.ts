@@ -1,7 +1,9 @@
 /**
- * Sends the exact questions the expression loop asks to Jev for a few
- * transcript lines and prints what it would decide, with latency. Tune the
- * question wording in lib/expression-controller.ts from what you see here.
+ * Sends the exact questions the expression loop asks to Jev, through the
+ * runtime's decisions (RUNTIME_URL, default 7100; the runtime needs
+ * TYPESAFE_API_KEY), for a few transcript lines and prints what it would
+ * decide, with latency. Tune the question wording in
+ * lib/expression-controller.ts from what you see here.
  *
  *   make probe-jev
  *   make probe-jev LINES="'can you clap?' 'hahaha'"
@@ -23,11 +25,7 @@ const env = (() => {
     return {};
   }
 })();
-const key = process.env.TYPESAFE_API_KEY || env.TYPESAFE_API_KEY;
-if (!key) {
-  console.error("TYPESAFE_API_KEY is not set (.env.local).");
-  process.exit(1);
-}
+const runtime = (process.env.RUNTIME_URL || env.RUNTIME_URL || "http://127.0.0.1:7100").replace(/\/$/, "");
 const lines = process.argv.slice(2).length
   ? process.argv.slice(2)
   : [
@@ -62,17 +60,10 @@ for (const text of lines) {
     },
   };
   const started = performance.now();
-  const response = await fetch("https://api.typesafe.ai/v1/systemone", {
+  const response = await fetch(`${runtime}/api/decisions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.JEV_MODEL || env.JEV_MODEL || "jev-latest",
-      state,
-      questions,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state, questions, profile: "avatar_studio" }),
   });
   const ms = Math.round(performance.now() - started);
   const json = await response.json();

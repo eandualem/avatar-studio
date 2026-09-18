@@ -64,10 +64,11 @@ studio.
 **Terminal 1, the runtime:**
 
 ```bash
-uv tool install 'assistant-runtime[voice]==0.2.0'   # or: pip install 'assistant-runtime[voice]==0.2.0'
+uv tool install 'assistant-runtime[voice]==0.3.0'   # or: pip install 'assistant-runtime[voice]==0.3.0'
 
 export OPENAI_API_KEY=sk-...                  # the runtime also reads a .env in the directory you run it in
 export VOICE__ENABLED=true                    # GPT-Live audio; bills connected time
+export TYPESAFE_API_KEY=...                   # Jev, the decision model that moves Charlie during calls
 
 # register this app's profile, the prompt artifacts that make the runtime Charlie.
 # The path must be absolute; `echo "$PWD/profiles/avatar-studio.toml"` in this
@@ -91,12 +92,12 @@ Open <http://127.0.0.1:7140>. Type *"Wave at me"* and Charlie waves; ask
 
 `make dev` checks the runtime first and exits with one line saying what to
 do if it is not reachable, has no `avatar_studio` profile registered, or is
-older than 0.2.0 (registered profiles and per-call Live instructions). It
-never starts or stops the runtime. The studio talks to
-`http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere,
-`TYPESAFE_API_KEY` there enables the Jev expression loop during calls, and
+older than 0.3.0 (registered profiles, per-call Live instructions, typed
+decisions). It never starts or stops the runtime. The studio talks to
+`http://127.0.0.1:7100`; `RUNTIME_URL` in `.env.local` points elsewhere, and
 `.env.example` lists the other server-side settings (which model plans text
-and which plans movement). Conversations are kept in your browser; the
+and which plans movement). The TypeSafe key is the runtime's; without it a
+call still connects, but Charlie's body stays idle during it. Conversations are kept in your browser; the
 runtime's memory of them lasts as long as the runtime process unless you
 give it Postgres.
 
