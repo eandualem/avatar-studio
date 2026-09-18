@@ -5,7 +5,7 @@ import {
 } from "@/lib/expression-controller";
 import { expressionLines } from "@/lib/expression-lines";
 import { seedGestures } from "@/lib/gesture-library";
-import type { BodyAction, BodyTransport } from "@/lib/body-controller";
+import type { BodyAction, BodyTransport } from "@/lib/body-action";
 import type { Oracle } from "@/lib/jev";
 import { restPose } from "@/lib/motion";
 import type { MotionController, MotionResult } from "@/types/avatar";

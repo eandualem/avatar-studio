@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { bodyTransport } from "@/lib/body-runtime";
 import { bodyContext } from "@/lib/body-tools";
 import { restPose } from "@/lib/motion";
-import { bodyMessages } from "@/lib/body-transcript";
 import { LiveBodyFacts } from "@/lib/live-body-facts";
 import type { MotionController } from "@/types/avatar";
 import { POST } from "@/app/api/runtime/[operation]/route";
@@ -145,34 +144,6 @@ it("routes body requests to the isolated runtime and validates origin before pro
     ).status,
   ).toBe(403);
   expect(fetch).toHaveBeenCalledTimes(2);
-});
-it("keeps a user utterance together across interleaved assistant fragments", () => {
-  const history = [
-    { id: "old", role: "assistant" as const, content: "How can I help?" },
-  ];
-  const fragments = [
-    { role: "user" as const, delta: "Can you", start_ms: 0, end_ms: 300 },
-    { role: "assistant" as const, delta: "Yes?", start_ms: 350, end_ms: 400 },
-    { role: "user" as const, delta: " wave?", start_ms: 450, end_ms: 700 },
-  ];
-  const first = bodyMessages("call", fragments.slice(0, 1), history);
-  const final = bodyMessages("call", fragments, history);
-  expect(final.at(-1)).toEqual({
-    id: first.at(-1)!.id,
-    role: "user",
-    content: "Can you wave?",
-  });
-  expect(final[0]).toEqual(history[0]);
-  const next = bodyMessages(
-    "call",
-    [
-      ...fragments,
-      { role: "user", delta: "Run now", start_ms: 2400, end_ms: 2700 },
-    ],
-    history,
-  );
-  expect(next.at(-1)?.id).not.toBe(first.at(-1)?.id);
-  expect(next.at(-1)?.content).toBe("Run now");
 });
 it("correlates quiet engine facts, ignores unrelated acknowledgments and reports timeout without retry", async () => {
   vi.useFakeTimers();

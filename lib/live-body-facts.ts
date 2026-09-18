@@ -1,4 +1,4 @@
-import type { BodyAction } from "./body-controller";
+import type { BodyAction } from "./body-action";
 
 export type FactReceipt = {
   eventId: string;

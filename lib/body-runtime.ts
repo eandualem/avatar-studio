@@ -2,7 +2,7 @@ import { z } from "zod";
 import { pendingSchema } from "@/types/conversation";
 import instructions from "@/profiles/body-instructions.md?raw";
 import { bodyModelConfig } from "./body-model";
-import type { BodyTransport } from "./body-controller";
+import type { BodyTransport } from "./body-action";
 
 async function request(operation: string, body: unknown, timeout = 15000) {
   const response = await fetch(`/api/runtime/body-${operation}`, {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { pendingSchema, type Message } from "./conversation";
-import type { BodyView } from "@/lib/body-controller";
+import type { BodyView } from "@/lib/body-action";
 import type { FactReceipt } from "@/lib/live-body-facts";
 
 export enum VoicePhase {

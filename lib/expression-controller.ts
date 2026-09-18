@@ -7,7 +7,7 @@ import type {
   BodyTransport,
   BodyView,
   Pulse,
-} from "./body-controller";
+} from "./body-action";
 import { bodyContext, bodyDecision } from "./body-tools";
 import type { ExpressionLine } from "./expression-lines";
 import {

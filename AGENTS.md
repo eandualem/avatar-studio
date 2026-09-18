@@ -54,9 +54,7 @@ Conventions worth knowing before you edit:
 - The expression controller (`lib/expression-controller.ts`) is the one
   place that admits, supersedes and cancels live movement, whether the
   movement came from the library or from the planner. Do not add a second
-  route that can move Charlie during a call. `lib/body-controller.ts` is the
-  `main` design, kept for comparison and its tests; the live call no longer
-  uses it.
+  route that can move Charlie during a call.
 - Library entries are `move_avatar` plans and must pass
   `tests/gesture-library.test.ts` on the shipped skeleton. Tune them in the
   Dev panel ("Library · name"), not from a transcript.
