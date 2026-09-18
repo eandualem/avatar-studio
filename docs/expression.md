@@ -1,8 +1,9 @@
 # Expression: Jev, the library and the planner
 
-On this branch Charlie's body during a live call is driven by a decision
-model, not by a planner writing numbers for each utterance. This page is
-the loop; [motion.md](motion.md) is still the solver and the tool.
+Charlie's body during a live call is driven by a decision model choosing
+from a library of authored plans, not by a planner writing numbers for
+each utterance. This page is the loop; [motion.md](motion.md) is the solver
+and the tool the plans are written for.
 
 ## The idea
 
@@ -25,7 +26,7 @@ user or from Charlie's own speech, calls `observe`:
 1. Fragments become lines per speaker (`lib/expression-lines.ts`). A user
    line keeps its identity while it grows, so what was performed for it is
    remembered.
-2. One Jev call carries the state and five questions. At most one call is in
+2. One Jev call carries the state and eight questions. At most one call is in
    flight; a burst of fragments coalesces into the next call with the latest
    lines. Identical state is never sent twice.
 3. After 800 ms without a new fragment the last line counts as complete and

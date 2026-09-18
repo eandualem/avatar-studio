@@ -1,4 +1,4 @@
-# Avatar Studio — contributor notes (experiment branch)
+# Avatar Studio — contributor notes
 
 Avatar Studio is a demonstration application for
 [assistant-runtime](https://pypi.org/project/assistant-runtime/): a 3D robot
@@ -6,17 +6,15 @@ you talk to, whose body a model moves through host tools. The README
 explains what it does and how to run it; this file is about working on the
 code.
 
-**This branch is an experiment.** `experiment/jev-body` replaces the rule
-that Charlie only moves from numbers a model writes per utterance. Here a
-decision model, TypeSafe's Jev, chooses continuously from a library of
-movements that were authored once as `move_avatar` plans, and the
-number-writing planner is the fallback that grows the library. If the
-experiment succeeds, it is the justification for changing `main`; until
-then `main` keeps its rules and this branch may break any of them that
-stand in the way. See `docs/expression.md`.
+Charlie's body during a call is a library of movements, authored once as
+`move_avatar` plans, that a decision model (TypeSafe's Jev) chooses from
+continuously while the user speaks; the number-writing planner composes
+only what the library lacks, and the result joins the library. That is the
+design, not a rule to relax: no hand-keyframed clips, and no second route
+that moves Charlie during a call. See `docs/expression.md`.
 
-It is still deliberately small. Before adding something, check it earns
-its place in a demonstration of the runtime and of the decision loop.
+It is deliberately small. Before adding something, check it earns its
+place in a demonstration of the runtime and of the decision loop.
 
 ## Architecture
 

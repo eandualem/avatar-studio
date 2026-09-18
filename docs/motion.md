@@ -1,9 +1,11 @@
 # Motion: the rig, the solver and the tool
 
-Charlie has no animation clips. A model describes *where* body parts should
-be and *when*; the app solves the joints every frame and refuses poses the
-character cannot hold. This page covers the exported rig, the solver
-libraries and what they enforce, and the movement tool the model calls.
+Charlie has no hand-keyframed animation clips. Every movement is a plan a
+model wrote, *where* body parts should be and *when*, kept in the library
+or composed on request; the app solves the joints every frame and refuses
+poses the character cannot hold. This page covers the exported rig, the
+solver libraries and what they enforce, and the movement tool the plans
+are written for.
 
 ## The rig
 

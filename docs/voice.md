@@ -16,10 +16,10 @@ a model that is busy talking. So:
   delegates nothing; the runtime creates the call in `mode: "conversation"`,
   which refuses delegation on its side too.
 - **The expression controller moves.** Every transcript fragment, from the
-  user or from Charlie's own speech, becomes one Jev call that answers five
+  user or from Charlie's own speech, becomes one Jev call that answers eight
   typed questions at once ([expression.md](expression.md)). A chosen library
   entry runs at once; there is no quiet period. When Jev finds nothing in
-  the library for an explicit request, the planner is asked as on `main`: an
+  the library for an explicit request, the planner is asked: an
   ordinary chat request on a fresh runtime session with
   `output_mode: "host_tools"`, the prompt `profiles/body-instructions.md`, the
   conversation so far and the actual pose, answered with exactly one tool
@@ -95,17 +95,16 @@ The numbers that matter, from real calls in September 2026:
 |---|---|
 | Transcription + spoken reply | under 0.5 s each |
 | Quiet period before a decision | none; Jev answers each fragment, and a settled line is asked once more after 0.8 s |
-| Jev decision, library movement | 0.33–0.52 s per call in probes, about 1 s on the first call |
+| Jev decision, library movement | 0.38–0.78 s per call, 1–2.4 s on the first call of a session |
+| Last word to first moving frame, library movement | about 0.5 s on real calls, often before the sentence ends |
 | Body planning, `openai:gpt-6-astra` | 6.8–11 s for a ~200-token plan (≈50 tok/s, 2.7 s to first token) |
 | Body planning, `cerebras:qwen-3.8-27b` | 2.1–3.9 s, valid `move_avatar` each time |
 | Body planning, `cerebras:gpt-oss-120b` | 2.3–5.5 s, tends to `hold` on a plain wave |
-| Last word to first moving frame | 3.2–6.4 s on the fast models; planning is 60–85 % of it |
+| Last word to first moving frame, planned movement | 3.2–6.4 s on the fast models; planning is 60–85 % of it, paid once per new movement |
 
-Speech is never blocked by planning, which is the point; the remaining gap
-is the planning itself. Two known gaps, tracked in
-[issue #48](https://github.com/eandualem/avatar-studio/issues/48): a sentence
-spoken with pauses arrives as several fragments and each cancels the decision
-in flight, and the persona still narrates its own rules occasionally.
+Speech is never blocked by planning, which is the point. A planned
+movement is learned into the library, so its second request starts from
+the library in about 0.5 s.
 
 ## Tests
 

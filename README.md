@@ -3,9 +3,11 @@
 Avatar Studio is a voice assistant with a body. Charlie, a 3D robot, stands
 on the left of the screen; you talk to him, type to him, or dictate, and he
 answers in speech or text while moving: a wave with a greeting, a
-thoughtful lean on a hard question, a run in place if you ask for one. No
-animation clips are played. A model writes where his hands, feet, torso and
-head should be and when, and the browser solves the joints every frame.
+thoughtful lean on a hard question, a run in place if you ask for one. His
+movements are plans a model wrote: where his hands, feet, torso and head
+should be and when, solved into joints by the browser every frame. During a
+call a decision model picks the plan that fits while you are still
+speaking, and a planner composes anything the library lacks and adds it.
 
 It exists to demonstrate
 [assistant-runtime](https://pypi.org/project/assistant-runtime/), an
@@ -16,12 +18,6 @@ built the same way: one page, no accounts, no database, about 6,500 lines of
 TypeScript.
 
 ![The studio: Charlie, the conversation, and the Talk live and Body model controls](public/screenshot.jpg)
-
-> **Experiment branch.** `experiment/jev-body` tries a different strategy
-> for the live body: TypeSafe's Jev decision model chooses continuously from
-> a library of authored movements, and the number-writing planner only
-> composes what the library lacks, growing it. `main` keeps the original
-> design. See [docs/expression.md](docs/expression.md).
 
 ## What it demonstrates
 
@@ -34,9 +30,10 @@ TypeScript.
   constrained it. See [docs/motion.md](docs/motion.md).
 - **A decision model on the live body.** *Talk live* puts GPT-Live on the
   conversation over WebRTC. On every transcript change, yours or Charlie's,
-  one Jev call answers five typed questions in under half a second: is this
-  a movement request, start something now, which library entry, stop, how
-  much energy. Code admits at most one movement, and a request the library
+  one Jev call answers eight typed questions in under half a second: is
+  this a movement request, start something now, which library entry, is it
+  really covered, stop, how much energy, for how long, and what body
+  language fits. Code admits at most one movement, and a request the library
   cannot serve goes to the planner on the model you pick in the header; its
   plan is learned into the library. Speech never waits for the body; the
   app owns admission, cancellation and the quiet facts that tell the voice

@@ -8,7 +8,7 @@ provider key ever reaches the browser.
 ```
 browser ──HTTP──▶ app/api/runtime/*   ──▶  POST /api/chat, /cancel     (text, planner decisions)
         ──HTTP/SSE─▶ app/api/voice/*  ──▶  /api/voice/calls/*          (GPT-Live calls)
-        ──HTTP──▶ app/api/jev         ──▶  TypeSafe POST /v1/systemone (expression decisions, experiment)
+        ──HTTP──▶ app/api/jev         ──▶  TypeSafe POST /v1/systemone (expression decisions)
         ◀─WebRTC audio + data channel────  OpenAI GPT-Live (negotiated through the runtime)
 ```
 
