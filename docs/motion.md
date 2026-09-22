@@ -1,8 +1,8 @@
 # Motion: the rig, the solver and the tool
 
 Charlie has no animation clips. A model describes *where* body parts should
-be and *when*; the app solves the joints every frame and refuses poses the
-character cannot hold. This page covers the exported rig, the solver
+be and *when*; the app calculates joint rotations every frame and rejects
+poses that violate its configured constraints. This page covers the exported rig, the solver
 libraries and what they enforce, and the movement tool the model calls.
 
 ## The rig
@@ -13,7 +13,8 @@ panels parented to those bones, zero animation clips, about 17 MB. The
 character is 5.56 Blender units tall; the app works in a space where one
 unit is the robot's height, X is positive to the robot's left (viewer's
 right), Y is up from the floor and Z points at the viewer.
-`blender/README.md` describes how the model and the rig are reproduced.
+[Blender instructions](../blender/README.md) describe how to rebuild or
+export the model and rig.
 
 Three.js renders the GLB directly (`lib/robot.ts`). `lib/body/rig.ts` maps
 the shipped bone names to limb chains and gives each joint a rest-aligned
@@ -21,11 +22,13 @@ anatomical frame with bounds.
 
 ## The solver
 
-Two open-source libraries, both Apache-2.0, no algorithm of our own:
+Inverse kinematics (IK) finds joint rotations that place a hand or foot at
+a requested target. Two Apache-2.0 libraries support the solver:
 
 - [closed-chain-ik-js](https://github.com/gkjohnson/closed-chain-ik-js) solves
-  each limb with damped least squares, joint bounds, orientation goals and a
-  rest-pose bias, warm-started from the previous frame so the elbow and knee
+  each limb with damped least squares, an iterative method for reducing
+  target error. It includes joint bounds, orientation goals and a preference
+  for the rest pose. Starting from the previous frame helps the elbow and knee
   settle into a consistent configuration. It is pinned to commit `97f388c`
   and imported through its core entry; `lib/body/chain.ts` holds the small
   axis-ID shim its ambient enum needs.
@@ -48,10 +51,6 @@ cover every panel or finger, the support test is static, contacts are
 checked per frame rather than swept, and nothing plans a path around an
 obstacle. Walking with root travel, balance under momentum and facial
 animation are outside this solver.
-
-Alternatives looked at: Fullik (FABRIK, no rest-pose bias), Three.js
-CCDIKSolver (would still need posture, support and collision around it) and
-THREE.IK (self-described work in progress).
 
 ## The tool
 
