@@ -96,6 +96,14 @@ else is regenerated.
 Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`), with a
 body saying why. Keep every commit building.
 
+## Local continuity
+
+At startup, read `.backbone/memory/HANDOFF.md` and `.backbone/memory/INDEX.md`
+for the active work and relevant notes. At handoff, update `HANDOFF.md`;
+keep useful history in separate files linked from `INDEX.md`. These paths
+refer to the owning checkout's local memory, including when using a
+temporary checkout. The injected shared memory policy governs its use.
+
 ## Scope
 
 In scope: the robot, the page, text and live conversation, procedural body
