@@ -1,13 +1,14 @@
 # Talk live: one voice, one body, two models
 
-**Talk live** puts OpenAI GPT-Live on the conversation and a separate body
-controller on the movement. Neither waits for the other. This page is the
-pattern, the setup, and what it measures.
+**Talk live** uses OpenAI GPT-Live for speech and a separate chat model for
+movement planning. Neither waits for the other. Start with the
+[README setup](../README.md#running-it); this page explains the call behavior
+and implementation.
 
 ## Why two models
 
-A voice model that also plans movement has to finish planning before it can
-answer, and planning a gesture is slow next to a spoken reply. Charlie's
+If one model plans a gesture before answering, its movement planning delays
+the spoken reply. Charlie's
 speech should not stall behind his arms, and his arms should not depend on
 a model that is busy talking. So:
 
@@ -21,10 +22,11 @@ a model that is busy talking. So:
   conversation so far and the actual pose. The model answers with exactly one
   tool call: `move_avatar` (timed waypoints), `hold_avatar` (no change) or
   `stop_avatar`. It never writes prose; prose is treated as a failure.
-- **The app executes.** `lib/body-controller.ts` owns revisions, admission,
-  exclusive execution, priority (an explicit request outranks an incidental
-  gesture) and cancellation. A newer utterance invalidates a decision still in
-  flight; the last check happens immediately before the engine starts.
+- **The app executes.** `lib/body-controller.ts` tracks which utterance a
+  decision belongs to, checks whether to accept it (admission), runs one
+  movement at a time, and handles priority (an explicit request outranks an
+  incidental gesture) and cancellation. A newer utterance invalidates a
+  decision still in flight; the last check happens immediately before the engine starts.
 - **Facts flow back quietly.** When the engine actually starts, completes,
   cancels or fails an explicit action, the app appends one short factual line
   to Live over the data channel (`session.thinking.append`, not user speech),
@@ -38,10 +40,9 @@ its own model on the same runtime.
 ## Setup
 
 The runtime needs `VOICE__ENABLED=true` and an `OPENAI_API_KEY`; GPT-Live
-bills connected time. Everything app-specific — the registered profile, the
-Live persona, the body prompt, model choices — travels with the requests, so
-one plainly started runtime serves this app and others. See the README for
-the two-terminal recipe.
+bills connected time. The runtime registers `profiles/avatar-studio.toml`
+at startup. Requests select that profile and carry the Live persona, body
+prompt and model choices, so the same runtime can serve several apps.
 
 Before asking for the microphone the app reads `GET /api/voice/status` and
 requires `enabled`, `configured`, `conversation_mode_supported` and
@@ -55,14 +56,14 @@ own. `.env.example` lists the server-side settings (`RUNTIME_URL`,
 
 `machines/voiceMachine.ts` owns the call; `lib/voice-client.ts` owns browser
 media and transport. The browser creates the `oai-events` data channel,
-gathers ICE, posts its offer with `mode`, `profile`, `instructions` and a
-bounded window of recent visible history, applies the answer and waits for
-`session.started`. It sends no provider commands beyond the four the runtime
+gathers WebRTC connection candidates (ICE), posts its offer with `mode`,
+`profile`, `instructions` and a bounded window of recent visible history,
+applies the answer and waits for `session.started`. It sends no provider commands beyond the four the runtime
 allows (`instructions.append`, `thinking.append`, mute, unmute).
 
-Runtime events (SSE, resumable with `?after=<cursor>`) carry transcripts and
-call status. Spoken fragments are labelled as such and are not authoritative
-turns; full backend answers, if any, are separate messages. **Mute** disables
+Runtime events (server-sent events, or SSE) carry transcripts and call status
+and resume with `?after=<cursor>`. Spoken fragments are labelled as such
+and are not authoritative turns; full backend answers, if any, are separate messages. **Mute** disables
 the microphone track; **Stop movement** stops the engine and cancels the body
 decision while audio stays connected; **End call** mutes, asks the runtime to
 close, then releases media and streams. Closure failures stay visible.
@@ -75,30 +76,28 @@ the visible transcript.
 
 ## The speaking mouth
 
-A small opening under Charlie's smile follows the incoming audio amplitude
-(35 ms attack, 75 ms release). Silence, blocked playback, mute and call
-shutdown close it. It is amplitude, not visemes; lip-sync is future work.
+A small opening under Charlie’s smile follows the loudness of his received
+speech audio (35 ms opening response, 75 ms closing response). Silence,
+blocked or paused playback and call shutdown close it. Muting your microphone
+does not mute Charlie’s audio or stop his mouth. The mouth does not form
+speech sounds; phoneme lip-sync is not supported.
 
-## What it measures
+## Timing and limitations
 
-The body actions of the current call are timed (requested, decided,
-started, finished) and shown above the composer during and after a call.
-The numbers that matter, from real calls in September 2026:
+The body actions of the current call are shown above the composer with
+requested, decided, started and finished timestamps. “Started” means the
+engine applied the first frame, not that the model returned a plan.
 
-| Stage | Measured |
-|---|---|
-| Transcription + spoken reply | under 0.5 s each |
-| Quiet period before a decision | 0.9 s, fixed |
-| Body planning, `openai:gpt-6-astra` | 6.8–11 s for a ~200-token plan (≈50 tok/s, 2.7 s to first token) |
-| Body planning, `cerebras:qwen-3.8-27b` | 2.1–3.9 s, valid `move_avatar` each time |
-| Body planning, `cerebras:gpt-oss-120b` | 2.3–5.5 s, tends to `hold` on a plain wave |
-| Last word to first moving frame | 3.2–6.4 s on the fast models; planning is 60–85 % of it |
+The controller waits for 0.9 s of quiet before requesting a decision. Model
+planning adds variable delay depending on the provider, model, request and
+rate limits; the timing panel shows the result for the current call. Speech
+continues during that wait. Movement duration is separate from the delay
+before its first frame.
 
-Speech is never blocked by planning, which is the point; the remaining gap
-is the planning itself. Two known gaps, tracked in
-[issue #48](https://github.com/eandualem/avatar-studio/issues/48): a sentence
-spoken with pauses arrives as several fragments and each cancels the decision
-in flight, and the persona still narrates its own rules occasionally.
+A sentence spoken with pauses can produce several transcript fragments;
+a new fragment cancels a decision still in flight. The voice can also
+occasionally narrate its internal movement-confirmation rules. These limitations
+are tracked in [issue #48](https://github.com/eandualem/avatar-studio/issues/48).
 
 ## Tests
 

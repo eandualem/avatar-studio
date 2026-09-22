@@ -12,20 +12,16 @@ is no active 3D viewport in that context, so treat `bpy.ops` as suspect and
 ## Module layout and reload
 
 ```python
-# blender/robot/build.py — entry point run with: scripts/bl run blender/robot/build.py
-import importlib, sys
-import robot.parts, robot.materials, robot.stage   # blender/ is on sys.path
-for m in (robot.parts, robot.materials, robot.stage):
-    importlib.reload(m)
-robot.stage.clear("Robot")        # remove what a previous run made
-robot.parts.build()
-robot.materials.apply()
-robot.stage.setup()
-print("built", len(bpy.data.collections["Robot"].all_objects), "objects")
+# Run inside Blender through scripts/bl exec, or use scripts/bl run blender/robot/build.py.
+import importlib
+from robot import build   # scripts/bl puts blender/ on sys.path
+importlib.reload(build)
+build.build()
 ```
 
-`clear()` deletes every object in the collection and the collection, then
-orphans (`bpy.data.orphans_purge(do_recursive=True)`). Never
+`build()` reloads the model modules, clears its owned collections, recreates
+materials, parts and studio, and saves `blender/scene.blend`. Use
+`build.build(save=False)` to rebuild without saving. Never
 `bpy.ops.wm.read_homefile` from the bridge.
 
 ## Geometry without ops

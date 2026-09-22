@@ -56,11 +56,11 @@ voice routes under `/api/voice`, and the profile TOML in `profiles/`.
 `assistant-runtime docs` lists the runtime's pages; its source is at
 <https://github.com/eandualem/assistant-runtime>.
 
-Everything app-specific is sent per request from the server routes in
-`app/api/` (`lib/runtime-config.ts`): the registered profile, the text and
-body models, thinking budget, working memory off, and for voice calls the
-persona in `profiles/live-instructions.md`. Nothing app-specific belongs in
-the runtime's startup configuration, and nothing here starts, replaces or
+The server routes in `app/api/` use `lib/runtime-config.ts` to attach the
+registered profile, text and body models, thinking budget and working-memory
+setting to chat requests. `lib/voice-client.ts` sends the profile and the
+persona in `profiles/live-instructions.md` when creating a voice call.
+Nothing app-specific belongs in the runtime's startup configuration, and nothing here starts, replaces or
 stops the runtime; `make dev` only checks it.
 
 If the runtime behaves differently from its documentation, do not paper
