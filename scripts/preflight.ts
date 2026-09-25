@@ -5,7 +5,12 @@
  * RUNTIME_URL (and VOICE_RUNTIME_URL/BODY_RUNTIME_URL overrides) the app
  * server uses are checked here.
  */
-import { APP_PROFILE, runtimeUrl } from "../lib/runtime-config";
+import {
+  APP_PROFILE,
+  runtimeUrl,
+  withBodyConfig,
+  withTextConfig,
+} from "../lib/runtime-config";
 
 export type PreflightResult = { ok: boolean; lines: string[] };
 
@@ -126,7 +131,7 @@ export async function preflight(
       else voice = "enabled";
     }
     lines.push(
-      `${prefix}runtime ${url}: ${primaryModel(health.body)}, voice ${voice}`,
+      `${prefix}runtime ${url}: default model ${primaryModel(health.body)}, voice ${voice}`,
     );
     // Voice is optional: text and body work without it, Talk live is refused.
     if (voice === "disabled")
@@ -137,6 +142,14 @@ export async function preflight(
       lines.push(
         "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
       );
+  }
+  // Every request names its own models, so the runtime default is not used.
+  if (ok) {
+    const text = withTextConfig({}, env).config;
+    const body = withBodyConfig({}, env).config;
+    lines.push(
+      `app models: text ${text.default_model}, body ${body.default_model}, auxiliary ${text.summarization_model}`,
+    );
   }
   return { ok, lines };
 }
