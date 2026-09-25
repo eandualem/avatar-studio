@@ -17,7 +17,7 @@ const healthy = {
   status: 200,
   body: {
     healthy: true,
-    components: { llm_service: { primary_model: "openai:gpt-5.6-sol" } },
+    components: { llm_service: { primary_model: "openai:gpt-5.6-terra" } },
   },
 };
 const profiles = (...available: string[]) => ({
@@ -25,6 +25,8 @@ const profiles = (...available: string[]) => ({
   body: { available_profiles: available },
 });
 const registered = profiles("design_studio", "avatar_studio");
+const appModels =
+  "app models: text openai:gpt-5.6-sol, body openai:gpt-6-astra, auxiliary openai:gpt-5.6-luna";
 
 describe("preflight", () => {
   it("fails with a start hint when the runtime is unreachable", async () => {
@@ -85,12 +87,13 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice disabled",
+      "runtime http://127.0.0.1:7100: default model openai:gpt-5.6-terra, voice disabled",
       "Talk live will be refused until assistant-runtime is started with voice enabled (VOICE__ENABLED).",
+      appModels,
     ]);
   });
 
-  it("reports a fully working runtime in one line", async () => {
+  it("reports a fully working runtime and the models the app sends", async () => {
     const result = await preflight(
       env,
       fetcher({
@@ -108,7 +111,8 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled",
+      "runtime http://127.0.0.1:7100: default model openai:gpt-5.6-terra, voice enabled",
+      appModels,
     ]);
   });
 
@@ -123,7 +127,7 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.lines[0]).toBe(
-      "text/body: runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice not checked",
+      "text/body: runtime http://127.0.0.1:7100: default model openai:gpt-5.6-terra, voice not checked",
     );
     expect(result.lines[1]).toContain(
       "voice: assistant-runtime is not reachable at http://127.0.0.1:7115",
@@ -173,8 +177,28 @@ describe("preflight", () => {
     );
     expect(result.ok).toBe(true);
     expect(result.lines).toEqual([
-      "runtime http://127.0.0.1:7100: openai:gpt-5.6-sol, voice enabled, but without per-call instructions",
+      "runtime http://127.0.0.1:7100: default model openai:gpt-5.6-terra, voice enabled, but without per-call instructions",
       "Talk live will be refused: update assistant-runtime so calls can carry Charlie’s persona (call_instructions_supported).",
+      appModels,
     ]);
+  });
+
+  it("prints the app's model overrides", async () => {
+    const result = await preflight(
+      {
+        ...env,
+        TEXT_MODEL: "cerebras:qwen-3.8-27b",
+        BODY_MODEL: "cerebras:gpt-oss-120b",
+        AUXILIARY_MODEL: "openai:gpt-5.6-terra",
+      },
+      fetcher({
+        "http://127.0.0.1:7100/health": healthy,
+        "http://127.0.0.1:7100/api/artifacts/profile": registered,
+        "http://127.0.0.1:7100/api/voice/status": { status: 200, body: {} },
+      }),
+    );
+    expect(result.lines.at(-1)).toBe(
+      "app models: text cerebras:qwen-3.8-27b, body cerebras:gpt-oss-120b, auxiliary openai:gpt-5.6-terra",
+    );
   });
 });
