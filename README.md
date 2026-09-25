@@ -38,7 +38,7 @@ make install
 In the same terminal, from the repository root:
 
 ```bash
-uv tool install 'assistant-runtime[voice]==0.2.0'
+uv tool install 'assistant-runtime[voice]==0.3.0'
 
 export OPENAI_API_KEY=sk-...  # replace with your API key
 export VOICE__ENABLED=true
@@ -52,9 +52,10 @@ contains its absolute path; keep this checkout available while the runtime
 runs. The runtime also reads a `.env` file in its working directory. Provider
 keys belong in the runtime environment, not the app's `.env.local`.
 
-This recipe pins the runtime version used by this branch. If you already
-run a shared runtime, register this profile there instead of starting another
-process on port 7100. `assistant-runtime docs` lists its configuration and
+The app works with assistant-runtime 0.2.0 and 0.3.0; 0.3.0 only adds a
+decisions route this app does not use. This recipe pins 0.3.0. If you already
+run a shared runtime at either version, register this profile there instead of
+starting another process on port 7100. `assistant-runtime docs` lists its configuration and
 provider guides. Other body-model providers need their own keys in the runtime;
 selecting one in the app does not configure that provider.
 
