@@ -96,6 +96,10 @@ else is regenerated.
 Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`), with a
 body saying why. Keep every commit building.
 
+`main` is the default and integration branch: open pull requests against it.
+`develop` is kept only as the base of the experiment branch's pull request
+(#60); it is not an integration branch, and its lag behind `main` is expected.
+
 ## Local continuity
 
 At startup, read `.backbone/memory/HANDOFF.md` and `.backbone/memory/INDEX.md`
