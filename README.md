@@ -38,25 +38,32 @@ make install
 In the same terminal, from the repository root:
 
 ```bash
-uv tool install 'assistant-runtime[voice]==0.2.0'
+uv tool install 'assistant-runtime[voice] @ git+https://github.com/eandualem/assistant-runtime@33331118256ea44d420d6a12a77b155e89240f0b'
 
 export OPENAI_API_KEY=sk-...  # replace with your API key
 export VOICE__ENABLED=true
 export ASSISTANT__PROFILES="[\"$PWD/profiles/avatar-studio.toml\"]"
+export TOOLS__BUILTIN_TOOLS='["screen"]'
+export HISTORY__COMPACTION_ENABLED=true
 
 assistant-runtime serve --port 7100
 ```
 
 The profile gives the assistant Charlie's identity. `ASSISTANT__PROFILES`
 contains its absolute path; keep this checkout available while the runtime
-runs. The runtime also reads a `.env` file in its working directory. Provider
-keys belong in the runtime environment, not the app's `.env.local`.
+runs. `TOOLS__BUILTIN_TOOLS` enables the screen tools Charlie uses to look at
+a capture of himself, and compaction summarises long conversations; the
+runtime enables neither on its own. The runtime also reads a `.env` file in
+its working directory. Provider keys belong in the runtime environment, not
+the app's `.env.local`.
 
-This recipe pins the runtime version used by this branch. If you already
-run a shared runtime, register this profile there instead of starting another
-process on port 7100. `assistant-runtime docs` lists its configuration and
-provider guides. Other body-model providers need their own keys in the runtime;
-selecting one in the app does not configure that provider.
+This recipe pins the assistant-runtime development commit this app is
+configured for; it will name a release once one includes that commit. If you
+already run a shared runtime, register this profile there and enable the same
+two settings instead of starting another process on port 7100.
+`assistant-runtime docs` lists its configuration and provider guides. Other
+body-model providers need their own keys in the runtime; selecting one in the
+app does not configure that provider.
 
 ### 3. Start the app
 

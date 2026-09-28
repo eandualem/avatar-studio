@@ -114,3 +114,24 @@ describe("withTextConfig", () => {
     });
   });
 });
+
+describe("temperature", () => {
+  it("sends 0.1 to non-OpenAI models only, and keeps a supplied value", () => {
+    expect(withBodyConfig({}, {}).config).not.toHaveProperty("temperature");
+    expect(
+      withBodyConfig({ config: { default_model: "cerebras:gpt-oss-120b" } }, {})
+        .config.temperature,
+    ).toBe(0.1);
+    expect(
+      withTextConfig(
+        {
+          config: {
+            default_model: "google:gemini-3.8-flash",
+            temperature: 0.4,
+          },
+        },
+        {},
+      ).config.temperature,
+    ).toBe(0.4);
+  });
+});

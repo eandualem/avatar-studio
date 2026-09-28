@@ -79,7 +79,8 @@ arguments are a failed tool result, not an exception.
 The same schema is what the text assistant receives in `host_context`
 (`lib/host-tools.ts`), what the body controller receives during a live call
 (`lib/body-tools.ts`), and what the Dev panel edits by hand. The movement
-guidance the models read is `profiles/skills/charlie-motion/SKILL.md`.
+guidance the models read is `profiles/skills/charlie-motion/SKILL.md`, registered as
+the profile's `movement_skill` artifact.
 
 ## Dev panel
 
