@@ -10,3 +10,16 @@ default_file = "instructions.md"
 assistant_edit = "none"
 assistant_activate = false
 host_edit = true
+
+# Sent once in the system prompt rather than with every message's host context,
+# which the runtime stores and replays per message.
+[[artifacts]]
+name = "movement_skill"
+role = "Charlie-specific movement timing and composition examples"
+required = true
+default_file = "skills/charlie-motion/SKILL.md"
+
+[artifacts.policy]
+assistant_edit = "none"
+assistant_activate = false
+host_edit = true

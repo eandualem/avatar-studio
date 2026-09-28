@@ -9,6 +9,7 @@ export const DEFAULT_TEXT_MODEL = "openai:gpt-5.6-sol";
 export const DEFAULT_BODY_MODEL = "openai:gpt-6-astra";
 export const DEFAULT_AUXILIARY_MODEL = "openai:gpt-5.6-luna";
 export const DEFAULT_THINKING_BUDGET = 4000;
+export const NON_OPENAI_TEMPERATURE = 0.1;
 
 type Env = Record<string, string | undefined>;
 
@@ -42,6 +43,7 @@ export type RequestConfig = {
   enable_working_memory: boolean;
   summarization_model: string;
   working_memory_model: string;
+  temperature?: number;
 };
 type Configured<T> = T & {
   profile: string;
@@ -62,17 +64,25 @@ function withConfig<T extends Record<string, unknown>>(
     body.config && typeof body.config === "object"
       ? (body.config as Record<string, unknown>)
       : {};
+  const config: RequestConfig & Record<string, unknown> = {
+    ...defaults,
+    enable_working_memory: false,
+    // Auxiliary choices survive whatever the shared backend defaults to.
+    summarization_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
+    working_memory_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
+    ...supplied,
+  };
+  // The runtime no longer defaults a temperature; non-OpenAI models were tuned
+  // at 0.1. OpenAI reasoning models take none, so nothing is sent for them.
+  if (
+    config.temperature === undefined &&
+    !String(config.default_model).startsWith("openai:")
+  )
+    config.temperature = NON_OPENAI_TEMPERATURE;
   return {
     ...body,
     profile: typeof body.profile === "string" ? body.profile : APP_PROFILE,
-    config: {
-      ...defaults,
-      enable_working_memory: false,
-      // Auxiliary choices survive whatever the shared backend defaults to.
-      summarization_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
-      working_memory_model: env.AUXILIARY_MODEL || DEFAULT_AUXILIARY_MODEL,
-      ...supplied,
-    },
+    config,
   };
 }
 

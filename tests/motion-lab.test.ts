@@ -290,7 +290,7 @@ it("previews all examples and exposes speed extensions and invalid edits", () =>
   ).toContain("time");
   expect(previewMotion("{", restPose()).error).toContain("valid JSON");
   const context = hostContext(createMotionController());
-  expect(context.view.data.movement_skill).toContain("name: charlie-motion");
+  expect(context.view.data).not.toHaveProperty("movement_skill");
   expect(context.view.data.current_pose).toEqual(restPose());
 });
 
